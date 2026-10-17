@@ -36,7 +36,14 @@ let package = Package(
         ),
         .target(
             name: "MoleHelper",
-            dependencies: ["MoleCore"]
+            dependencies: ["MoleCore"],
+            resources: [
+                .process("LaunchDaemons")
+            ]
+        ),
+        .testTarget(
+            name: "MoleHelperTests",
+            dependencies: ["MoleHelper", "MoleCore"]
         )
     ]
 )
