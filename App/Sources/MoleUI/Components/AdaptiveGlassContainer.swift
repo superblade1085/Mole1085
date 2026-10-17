@@ -6,6 +6,7 @@ public struct AdaptiveGlassContainer<Content: View>: View {
     @ViewBuilder public var content: () -> Content
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.colorScheme) private var colorScheme
 
     public init(
@@ -34,7 +35,7 @@ public struct AdaptiveGlassContainer<Content: View>: View {
 
     @ViewBuilder
     private var backgroundView: some View {
-        if reduceTransparency {
+        if reduceTransparency || colorSchemeContrast == .increased {
             Color(nsColor: .windowBackgroundColor)
         } else {
             VisualEffectView(

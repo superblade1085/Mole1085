@@ -6,6 +6,7 @@ public struct SpecularBorder: ViewModifier {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(cornerRadius: CGFloat = GlassTheme.cardRadius, lineWidth: CGFloat = GlassTheme.specularLineWidth) {
         self.cornerRadius = cornerRadius
@@ -13,20 +14,29 @@ public struct SpecularBorder: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        content
+        let effectiveLineWidth = colorSchemeContrast == .increased ? max(1.0, lineWidth) : lineWidth
+        return content
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(
                         strokeGradient,
-                        lineWidth: lineWidth
+                        lineWidth: effectiveLineWidth
                     )
             )
     }
 
     private var strokeGradient: LinearGradient {
+        if colorSchemeContrast == .increased {
+            return LinearGradient(
+                colors: [GlassTheme.highContrastBorderColor, GlassTheme.highContrastBorderColor],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+
         if reduceTransparency {
             return LinearGradient(
-                colors: [Color.primary.opacity(0.15), Color.primary.opacity(0.15)],
+                colors: [Color.primary.opacity(0.18), Color.primary.opacity(0.18)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -35,9 +45,9 @@ public struct SpecularBorder: ViewModifier {
         if colorScheme == .dark {
             return LinearGradient(
                 colors: [
-                    Color.white.opacity(0.22),
+                    GlassTheme.specularHighlightColor,
                     Color.white.opacity(0.08),
-                    Color.black.opacity(0.35)
+                    GlassTheme.specularDarkBorderColor
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

@@ -28,9 +28,10 @@ public struct StorageGaugeBar: View {
         }
 
         let total = Double(diskSpace.totalBytes)
-        let free = Double(diskSpace.freeBytes)
-        let reclaimable = Double(min(diskSpace.reclaimableBytes, diskSpace.totalBytes - diskSpace.freeBytes))
-        let usedNonReclaimable = max(0, (total - free) - reclaimable)
+        let free = Double(min(diskSpace.totalBytes, max(0, diskSpace.freeBytes)))
+        let used = max(0, total - free)
+        let reclaimable = min(Double(max(0, diskSpace.reclaimableBytes)), used)
+        let usedNonReclaimable = max(0, used - reclaimable)
 
         return StorageProportions(
             usedRatio: usedNonReclaimable / total,
@@ -41,13 +42,20 @@ public struct StorageGaugeBar: View {
 
     public var body: some View {
         let proportions = Self.calculateProportions(diskSpace: diskSpace)
+        let effectiveReclaimable = min(diskSpace.reclaimableBytes, diskSpace.usedBytes)
+        let nonReclaimableUsed = max(0, diskSpace.usedBytes - effectiveReclaimable)
 
         VStack(alignment: .leading, spacing: 8) {
             GeometryReader { geometry in
                 let totalWidth = geometry.size.width
-                let usedWidth = totalWidth * proportions.usedRatio
-                let reclaimableWidth = totalWidth * proportions.reclaimableRatio
-                let freeWidth = max(0, totalWidth - usedWidth - reclaimableWidth)
+                let activeSegments = (proportions.usedRatio > 0 ? 1 : 0) +
+                                     (proportions.reclaimableRatio > 0 ? 1 : 0) +
+                                     (proportions.freeRatio > 0 ? 1 : 0)
+                let totalSpacing = CGFloat(max(0, activeSegments - 1)) * 2.0
+                let availableWidth = max(0, totalWidth - totalSpacing)
+                let usedWidth = availableWidth * proportions.usedRatio
+                let reclaimableWidth = availableWidth * proportions.reclaimableRatio
+                let freeWidth = max(0, availableWidth - usedWidth - reclaimableWidth)
 
                 HStack(spacing: 2) {
                     // 1. Used Space (Non-reclaimable)
@@ -59,6 +67,7 @@ public struct StorageGaugeBar: View {
                                 endPoint: .trailing
                             ))
                             .frame(width: usedWidth)
+                            .help("Used: \(DiskSpaceInfo.format(bytes: nonReclaimableUsed))")
                     }
 
                     // 2. Reclaimable Space (Mole Targets)
@@ -70,6 +79,7 @@ public struct StorageGaugeBar: View {
                                 endPoint: .trailing
                             ))
                             .frame(width: reclaimableWidth)
+                            .help("Reclaimable: \(DiskSpaceInfo.format(bytes: effectiveReclaimable))")
                     }
 
                     // 3. Free Space
@@ -77,24 +87,26 @@ public struct StorageGaugeBar: View {
                         Rectangle()
                             .fill(Color.primary.opacity(0.08))
                             .frame(width: freeWidth)
+                            .help("Free: \(DiskSpaceInfo.format(bytes: diskSpace.freeBytes))")
                     }
                 }
                 .clipShape(Capsule())
                 .specularBorder(cornerRadius: height / 2, lineWidth: 0.5)
             }
             .frame(height: height)
+            .animation(.easeInOut(duration: 0.35), value: diskSpace)
 
             // Legend
             HStack(spacing: 16) {
                 legendItem(
                     title: "Used",
                     color: Color.blue,
-                    bytes: diskSpace.usedBytes - diskSpace.reclaimableBytes
+                    bytes: nonReclaimableUsed
                 )
                 legendItem(
                     title: "Reclaimable",
                     color: Color.orange,
-                    bytes: diskSpace.reclaimableBytes
+                    bytes: effectiveReclaimable
                 )
                 legendItem(
                     title: "Free",

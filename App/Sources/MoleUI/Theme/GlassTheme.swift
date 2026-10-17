@@ -6,8 +6,9 @@ public enum GlassTheme {
     public static let innerRadius: CGFloat = 8.0
     public static let specularLineWidth: CGFloat = 0.5
 
-    public static let specularHighlightColor = Color.white.opacity(0.15)
-    public static let specularDarkBorderColor = Color.black.opacity(0.25)
+    public static let specularHighlightColor = Color.white.opacity(0.22)
+    public static let specularDarkBorderColor = Color.black.opacity(0.35)
+    public static let highContrastBorderColor = Color.primary.opacity(0.40)
     public static let glassBackgroundColor = Color(nsColor: .windowBackgroundColor).opacity(0.55)
 
     public static func color(for group: CleanCategoryGroup) -> Color {
