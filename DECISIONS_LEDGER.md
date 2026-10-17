@@ -86,3 +86,16 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Requires code-signing with a valid Developer ID or Development certificate for production XPC communication; unit test runner uses explicit mock shutdown handler and Darwin audit token introspection.
 * **Impact & Benefit:** Bulletproof privileged helper architecture with zero attack surface for local privilege escalation, compliant with macOS 14+ Background Task Management (BTM) policies.
 
+---
+
+### Decision 008: Observation Framework State Management & Proportional Treemap Geometric Partitioning
+* **Date:** 2026-10-18
+* **Context:** Coordinating asynchronous disk exploration, background subprocess streaming, safe trashing, and real-time visualization without UI stutter or data races on macOS 14+ (Sonoma/Sequoia).
+* **Decision:**
+  1. **Swift 5.9+ Observation (`@MainActor @Observable`):** `MoleCoordinator` uses Apple's modern `@Observable` macro on `@MainActor`, eliminating legacy Combine `@Published` / `ObservableObject` overhead and ensuring thread-safe UI binding without main-thread data races.
+  2. **Proportional Treemap Layout (`TreemapNode.layout`):** Implemented an alternating slice-and-dice geometric partitioner mapping category byte weights to normalized rectangles `[0, 0, 1, 1]` with termination guarantees (`1 <= splitIndex < nodes.count`), zero-division guards, and zero runaway recursion.
+  3. **Multi-layer Deletion Isolation:** `performSafeCleanup` inspects `DatalessGuard.isDatalessOrUbiquitous` before deletion and delegates strictly to `SafeTrash.trashItem`, supporting an injectable `trashingHandler` for clean synthetic testing without polluting the host's actual trash.
+* **Trade-off / Cost:** Treemap calculation runs on category updates; requires immutable `Sendable` value types for cross-task safety.
+* **Impact & Benefit:** Instantaneous UI binding updates, guaranteed thread safety, zero-risk synthetic unit testing, and proportional visual treemap exploration.
+
+

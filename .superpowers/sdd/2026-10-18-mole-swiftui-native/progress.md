@@ -23,7 +23,7 @@
 - [x] Task 2: Subprocess Streaming & Process Group Engine (MoleEngine) (Commit: `cdf9b27` - Approved)
 - [x] Task 3: Security & APFS Deletion Safety Layer (MoleSafety) (Commit: `3b7321b` - Approved)
 - [x] Task 4: Zero-Trust Privileged Helper Daemon (MoleHelper) (Commit: `0dec503` - Approved)
-- [ ] Task 5: Domain Models, State Management & Engine Coordinator (MoleCoordinator)
+- [x] Task 5: Domain Models, State Management & Engine Coordinator (MoleCoordinator) (Commit: `657a355` - Approved)
 - [ ] Task 6: Liquid Glass Design System Components (MoleUI)
 - [ ] Task 7: Navigation & Core Views Implementation
 - [ ] Task 8: Sparkle 2 In-App Updates & Guided Onboarding
