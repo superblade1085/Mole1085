@@ -62,5 +62,12 @@ final class NavigationTests: XCTestCase {
 
         let history = HistoryView(coordinator: coordinator)
         _ = history.body
+
+        var showOnboarding = true
+        let onboarding = OnboardingView(
+            coordinator: coordinator,
+            isPresented: Binding(get: { showOnboarding }, set: { showOnboarding = $0 })
+        )
+        _ = onboarding.body
     }
 }
