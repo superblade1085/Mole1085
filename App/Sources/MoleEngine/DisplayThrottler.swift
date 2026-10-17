@@ -7,6 +7,7 @@ import Foundation
 /// Features:
 /// - On-demand timer: strictly idle with 0% CPU wakeups when no events are buffered.
 /// - Asynchronous main-thread delivery: eliminates `DispatchQueue.main.sync` UI deadlock hazards.
+/// - Strict queue affinity: delivers batches on the designated queue without stranding items.
 public final class DisplayThrottler<T: Sendable>: @unchecked Sendable {
     private let interval: TimeInterval
     private let queue: DispatchQueue
@@ -99,34 +100,26 @@ public final class DisplayThrottler<T: Sendable>: @unchecked Sendable {
         )
         timer.setEventHandler { [weak self] in
             guard let self = self else { return }
-            let (batch, shouldStop) = self.drainBufferAndCheckStop()
+            
+            let batch: [T]
+            self.lock.lock()
+            if self.buffer.isEmpty {
+                self.timer?.cancel()
+                self.timer = nil
+                self.isTimerActive = false
+                self.lock.unlock()
+                return
+            }
+            batch = self.buffer
+            self.buffer.removeAll()
+            self.lock.unlock()
+            
             if !batch.isEmpty {
                 self.onBatch(batch)
-            }
-            if shouldStop {
-                self.stopTimer()
             }
         }
         timer.resume()
         self.timer = timer
-    }
-
-    private func drainBufferAndCheckStop() -> (batch: [T], shouldStop: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        let batch = buffer
-        buffer.removeAll()
-        let shouldStop = buffer.isEmpty
-        return (batch, shouldStop)
-    }
-
-    private func stopTimer() {
-        lock.lock()
-        defer { lock.unlock() }
-        guard isTimerActive else { return }
-        timer?.cancel()
-        timer = nil
-        isTimerActive = false
     }
 
     private func drainBuffer() -> [T] {
@@ -149,7 +142,9 @@ public final class DisplayThrottler<T: Sendable>: @unchecked Sendable {
                 }
             }
         } else {
-            onBatch(batch)
+            queue.async { [onBatch = self.onBatch] in
+                onBatch(batch)
+            }
         }
     }
 }

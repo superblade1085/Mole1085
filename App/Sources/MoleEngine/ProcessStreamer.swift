@@ -66,8 +66,13 @@ public struct ProcessStreamer: Sendable {
                 return
             }
 
-            // Drain stderr to prevent pipe buffer deadlock
-            proc.stderrHandle.readabilityHandler = { _ in }
+            // Actively drain stderr to prevent level-triggered GCD spin loops and pipe buffer deadlock
+            proc.stderrHandle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                }
+            }
 
             proc.stdoutHandle.readabilityHandler = { handle in
                 let data = handle.availableData
@@ -269,6 +274,20 @@ internal final class IsolatedProcess: @unchecked Sendable {
         stderrHandle.readabilityHandler = nil
         try? stdoutHandle.close()
         try? stderrHandle.close()
+    }
+
+    deinit {
+        let pid = self.pid
+        lock.lock()
+        let finished = hasFinished
+        lock.unlock()
+        if !finished && pid > 1 {
+            exitSource.cancel()
+            DispatchQueue.global(qos: .utility).async {
+                var status: Int32 = 0
+                _ = Darwin.waitpid(pid, &status, 0)
+            }
+        }
     }
 }
 

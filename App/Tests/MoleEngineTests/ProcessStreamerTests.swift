@@ -126,4 +126,18 @@ final class ProcessStreamerTests: XCTestCase {
         XCTAssertTrue(lines[0].contains("hello"))
         XCTAssertTrue(lines[0].contains("world"))
     }
+
+    func testStderrLargeDrainDoesNotDeadlockOrSpin() async throws {
+        let streamer = ProcessStreamer()
+        // Subprocess emits 100 KB to stderr and 'done' to stdout.
+        // If stderr readability handler does not read availableData, this blocks indefinitely.
+        var lines: [String] = []
+        for try await line in streamer.stream(
+            executable: "/bin/sh",
+            arguments: ["-c", "head -c 100000 /dev/zero | tr '\\0' 'x' >&2; echo 'done'"]
+        ) {
+            lines.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        XCTAssertEqual(lines, ["done"])
+    }
 }
