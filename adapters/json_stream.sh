@@ -54,14 +54,47 @@ export MOLE_TEST_MODE=1
 export MOLE_SKIP_MAIN=1
 
 # Duplicate original stdout to fd 3 for pure JSON output.
-# Redirect standard stdout & stderr to /dev/null to silence upstream logs, spinners, and echoes.
+# Standard stdout is redirected to /dev/null to silence upstream logs, spinners, and echoes.
+# Standard stderr is silenced unless MO_DEBUG=1 is set for observability.
 exec 3>&1
 exec 1>/dev/null
-exec 2>/dev/null
+if [[ "${MO_DEBUG:-0}" != "1" ]]; then
+    exec 2>/dev/null
+fi
 
-# Track emitted paths to prevent duplicate JSON events (Bash 3.2 compatible delimiter string)
-SEEN_PATHS=""
 CURRENT_CATEGORY="dev"
+
+# RFC 8259 compliant JSON string escaper
+escape_json_string() {
+    local value="${1:-}"
+    local LC_ALL=C
+    local char code idx
+    idx=0
+    while [[ "$idx" -lt "${#value}" ]]; do
+        char="${value:$idx:1}"
+        case "$char" in
+            "\\") printf '%s' "\\\\" ;;
+            "\"") printf '%s' "\\\"" ;;
+            $'\b') printf '%s' "\\b" ;;
+            $'\f') printf '%s' "\\f" ;;
+            $'\n') printf '%s' "\\n" ;;
+            $'\r') printf '%s' "\\r" ;;
+            $'\t') printf '%s' "\\t" ;;
+            *)
+                printf -v code '%d' "'$char"
+                if [[ "$code" -lt 0 ]]; then
+                    code=$((code + 256))
+                fi
+                if [[ "$code" -lt 32 ]]; then
+                    printf '\\u%04x' "$code"
+                else
+                    printf '%s' "$char"
+                fi
+                ;;
+        esac
+        idx=$((idx + 1))
+    done
+}
 
 emit_json_event() {
     local cat="$1"
@@ -70,14 +103,9 @@ emit_json_event() {
     local is_safe="$4"
 
     [[ -n "$raw_path" ]] || return 0
-    case "$SEEN_PATHS" in
-        *"|$raw_path|"*) return 0 ;;
-    esac
-    SEEN_PATHS="${SEEN_PATHS}|$raw_path|"
 
-    # Escape JSON special characters in path
     local escaped_path
-    escaped_path=$(printf '%s' "$raw_path" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+    escaped_path=$(escape_json_string "$raw_path")
 
     printf '{"category": "%s", "path": "%s", "bytes": %d, "safe": %s}\n' \
         "$cat" "$escaped_path" "$bytes" "$is_safe" >&3
@@ -110,6 +138,12 @@ is_path_safe_for_clean() {
     fi
     if declare -f is_path_whitelisted >/dev/null 2>&1; then
         if is_path_whitelisted "$target"; then
+            echo "false"
+            return 0
+        fi
+    fi
+    if declare -f holds_compiled_model_cache >/dev/null 2>&1; then
+        if holds_compiled_model_cache "$target"; then
             echo "false"
             return 0
         fi
@@ -180,6 +214,9 @@ _run_cleanup_step() { "$@" || true; }
 
 # Source common upstream library
 source "$UPSTREAM_ROOT/lib/core/common.sh"
+if [[ -f "$UPSTREAM_ROOT/lib/core/history.sh" ]]; then
+    source "$UPSTREAM_ROOT/lib/core/history.sh"
+fi
 if [[ -f "$UPSTREAM_ROOT/lib/clean/purge_shared.sh" ]]; then
     source "$UPSTREAM_ROOT/lib/clean/purge_shared.sh"
 fi
@@ -211,8 +248,14 @@ run_category_caches() {
     CURRENT_CATEGORY="caches"
     if [[ -f "$UPSTREAM_ROOT/lib/clean/caches.sh" ]]; then
         source "$UPSTREAM_ROOT/lib/clean/caches.sh"
-        if declare -f clean_caches >/dev/null 2>&1; then
-            clean_caches || true
+        if declare -f clean_service_worker_cache >/dev/null 2>&1; then
+            clean_service_worker_cache "Google Chrome" "$HOME/Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage" || true
+        fi
+        if declare -f clean_python_bytecode_cache_group >/dev/null 2>&1; then
+            clean_python_bytecode_cache_group || true
+        fi
+        if declare -f clean_project_caches >/dev/null 2>&1; then
+            clean_project_caches || true
         fi
     fi
 }
@@ -221,6 +264,23 @@ run_category_brew() {
     CURRENT_CATEGORY="brew"
     if [[ -f "$UPSTREAM_ROOT/lib/clean/brew.sh" ]]; then
         source "$UPSTREAM_ROOT/lib/clean/brew.sh"
+        # Explicit inspection of Homebrew caches
+        local brew_dl="$HOME/Library/Caches/Homebrew/downloads"
+        if [[ -d "$brew_dl" ]]; then
+            for item in "$brew_dl"/*; do
+                if [[ -e "$item" || -L "$item" ]]; then
+                    safe_clean "$item" "Homebrew download cache"
+                fi
+            done
+        fi
+        local brew_root="$HOME/Library/Caches/Homebrew"
+        if [[ -d "$brew_root" ]]; then
+            for item in "$brew_root"/*; do
+                if [[ -e "$item" || -L "$item" && "$item" != "$brew_dl" ]]; then
+                    safe_clean "$item" "Homebrew cache"
+                fi
+            done
+        fi
         clean_homebrew || true
         clean_homebrew_service_logs || true
     fi
@@ -239,8 +299,14 @@ run_category_system() {
     CURRENT_CATEGORY="system"
     if [[ -f "$UPSTREAM_ROOT/lib/clean/system.sh" ]]; then
         source "$UPSTREAM_ROOT/lib/clean/system.sh"
-        if declare -f clean_system >/dev/null 2>&1; then
-            clean_system || true
+        if declare -f clean_deep_system >/dev/null 2>&1; then
+            clean_deep_system || true
+        fi
+        if declare -f clean_local_snapshots >/dev/null 2>&1; then
+            clean_local_snapshots || true
+        fi
+        if declare -f clean_time_machine_failed_backups >/dev/null 2>&1; then
+            clean_time_machine_failed_backups || true
         fi
     fi
 }
@@ -249,8 +315,8 @@ run_category_project() {
     CURRENT_CATEGORY="project"
     if [[ -f "$UPSTREAM_ROOT/lib/clean/project.sh" ]]; then
         source "$UPSTREAM_ROOT/lib/clean/project.sh"
-        if declare -f clean_project_caches >/dev/null 2>&1; then
-            clean_project_caches || true
+        if declare -f clean_project_artifacts >/dev/null 2>&1; then
+            clean_project_artifacts || true
         fi
     fi
 }
