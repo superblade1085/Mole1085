@@ -36,4 +36,31 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(NavigationWorkflow.history.title, "History")
         XCTAssertEqual(NavigationWorkflow.history.systemImage, "clock.arrow.circlepath")
     }
+
+    @MainActor
+    func testViewInstantiationSmokeTests() {
+        let coordinator = MoleCoordinator(isMock: true)
+        
+        // Instantiate views and evaluate their body properties to verify no runtime traps
+        let sidebar = SidebarView(coordinator: coordinator)
+        _ = sidebar.body
+        
+        let clean = CleanView(coordinator: coordinator)
+        _ = clean.body
+        
+        let treemap = AnalyzeTreemapView(coordinator: coordinator)
+        _ = treemap.body
+        
+        let status = StatusView(coordinator: coordinator)
+        _ = status.body
+
+        let software = SoftwareView(coordinator: coordinator)
+        _ = software.body
+
+        let optimize = OptimizeView(coordinator: coordinator)
+        _ = optimize.body
+
+        let history = HistoryView(coordinator: coordinator)
+        _ = history.body
+    }
 }

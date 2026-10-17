@@ -183,12 +183,22 @@ public struct CleanView: View {
     }
 
     private func safetyBadge(_ level: SafetyLevel) -> some View {
-        Text(level.rawValue)
+        let tint: Color
+        switch level {
+        case .guaranteedSafe:
+            tint = .green
+        case .rebuildable:
+            tint = .blue
+        case .deadLeftover:
+            tint = .purple
+        }
+
+        return Text(level.rawValue)
             .font(.system(size: 10, weight: .semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.green.opacity(0.18))
-            .foregroundStyle(Color.green)
+            .background(tint.opacity(0.18))
+            .foregroundStyle(tint)
             .clipShape(Capsule())
     }
 

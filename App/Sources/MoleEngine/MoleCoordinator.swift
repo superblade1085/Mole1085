@@ -52,7 +52,9 @@ public final class MoleCoordinator {
 
     public func selectAllCategories() {
         for index in categories.indices {
-            categories[index].isSelected = true
+            if !categories[index].isProtectedByTCC {
+                categories[index].isSelected = true
+            }
         }
     }
 

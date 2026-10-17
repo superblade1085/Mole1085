@@ -46,9 +46,9 @@ final class CoordinatorTests: XCTestCase {
         coordinator.deselectAllCategories()
         XCTAssertEqual(coordinator.selectedReclaimableBytes, 0)
         
-        // Select all
+        // Select all (should only select non-TCC categories: cat1 = 10,000,000)
         coordinator.selectAllCategories()
-        XCTAssertEqual(coordinator.selectedReclaimableBytes, 15_000_000)
+        XCTAssertEqual(coordinator.selectedReclaimableBytes, 10_000_000, "selectAllCategories must not select TCC-protected categories without FDA")
     }
 
     func testTreemapNodeGeneration() {

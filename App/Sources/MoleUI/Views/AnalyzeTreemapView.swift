@@ -105,9 +105,8 @@ public struct AnalyzeTreemapView: View {
             hoveredNodeID = hovering ? node.id : nil
         }
         .onTapGesture {
-            if let catID = node.categoryID {
-                coordinator.toggleCategorySelection(id: catID)
-            }
+            guard let catID = node.categoryID, !(category?.isProtectedByTCC ?? false) else { return }
+            coordinator.toggleCategorySelection(id: catID)
         }
         .help("\(node.name): \(DiskSpaceInfo.format(bytes: node.size)) (Click to toggle)")
     }

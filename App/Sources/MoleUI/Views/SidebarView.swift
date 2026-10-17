@@ -34,6 +34,7 @@ public struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
 
             Spacer()
 
