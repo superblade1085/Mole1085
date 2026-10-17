@@ -4,6 +4,10 @@
 <dict>
     <key>Label</key>
     <string>com.mole.helper</string>
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.mole.MoleApp</string>
+    </array>
     <key>MachServices</key>
     <dict>
         <key>com.mole.helper</key>

@@ -7,21 +7,27 @@ public final class HelperDaemon: NSObject, NSXPCListenerDelegate, MoleHelperProt
 
     private let expectedTeamID: String?
     private let expectedBundleID: String
+    private let shutdownHandler: () -> Void
 
-    public init(expectedTeamID: String? = nil, expectedBundleID: String = "com.mole.MoleApp") {
+    public init(
+        expectedTeamID: String? = nil,
+        expectedBundleID: String = "com.mole.MoleApp",
+        shutdownHandler: @escaping () -> Void = { exit(0) }
+    ) {
         self.expectedTeamID = expectedTeamID
         self.expectedBundleID = expectedBundleID
+        self.shutdownHandler = shutdownHandler
         super.init()
     }
 
     // MARK: - NSXPCListenerDelegate
 
     public func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        // Zero-trust audit token verification
-        if let teamID = expectedTeamID {
+        // Zero-trust audit token verification: enforce unless in test mode with expectedTeamID == nil
+        if expectedTeamID != nil {
             guard XPCVerification.verifyConnection(
                 connection: newConnection,
-                expectedTeamID: teamID,
+                expectedTeamID: expectedTeamID,
                 expectedBundleID: expectedBundleID
             ) else {
                 newConnection.invalidate()
@@ -54,9 +60,9 @@ public final class HelperDaemon: NSObject, NSXPCListenerDelegate, MoleHelperProt
 
     public func requestGracefulShutdown(reply: @escaping (Bool) -> Void) {
         reply(true)
-        // Allow XPC response to be transmitted before process termination
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
-            exit(0)
+        // Allow XPC response to be transmitted before executing shutdown
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.shutdownHandler()
         }
     }
 }

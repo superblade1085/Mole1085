@@ -24,7 +24,17 @@ final class XPCVerificationTests: XCTestCase {
     }
 
     func testHelperDaemonProtocolImplementation() {
-        let daemon = HelperDaemon(expectedTeamID: nil, expectedBundleID: "com.mole.MoleApp")
+        var shutdownCalled = false
+        let shutdownExecutedExpectation = expectation(description: "Shutdown executed")
+        
+        let daemon = HelperDaemon(
+            expectedTeamID: nil,
+            expectedBundleID: "com.mole.MoleApp",
+            shutdownHandler: {
+                shutdownCalled = true
+                shutdownExecutedExpectation.fulfill()
+            }
+        )
         
         let versionExpectation = expectation(description: "Get version")
         daemon.getVersion { version in
@@ -39,6 +49,35 @@ final class XPCVerificationTests: XCTestCase {
         }
         
         waitForExpectations(timeout: 2.0)
+        XCTAssertTrue(shutdownCalled)
+    }
+
+    func testAuditTokenVerificationWithCurrentProcess() {
+        var token = audit_token_t()
+        var count = mach_msg_type_number_t(MemoryLayout<audit_token_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &token) { tokenPtr in
+            tokenPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                task_info(mach_task_self_, task_flavor_t(TASK_AUDIT_TOKEN), intPtr, &count)
+            }
+        }
+        XCTAssertEqual(kr, KERN_SUCCESS, "task_info should succeed in retrieving audit_token_t for the current process")
+        
+        // Negative test: current test runner does not have team "INVALID_TEAM" and bundle "com.mole.MoleApp"
+        let verified = XPCVerification.verifyAuditToken(
+            token,
+            expectedTeamID: "INVALID_TEAM",
+            expectedBundleID: "com.mole.MoleApp"
+        )
+        XCTAssertFalse(verified, "Verification must reject mismatched team/bundle for current process")
+
+        // Zeroed audit token must fail safely
+        var zeroToken = audit_token_t()
+        let zeroVerified = XPCVerification.verifyAuditToken(
+            zeroToken,
+            expectedTeamID: nil,
+            expectedBundleID: "com.mole.MoleApp"
+        )
+        XCTAssertFalse(zeroVerified, "Verification must safely reject zeroed audit token")
     }
 
     func testHelperDaemonRejectsProtectedSystemPathClean() {
