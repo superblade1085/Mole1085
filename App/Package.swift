@@ -26,6 +26,10 @@ let package = Package(
             name: "MoleEngine",
             dependencies: ["MoleCore"]
         ),
+        .testTarget(
+            name: "MoleEngineTests",
+            dependencies: ["MoleEngine", "MoleCore"]
+        ),
         .target(
             name: "MoleUI",
             dependencies: ["MoleCore", "MoleEngine"]
