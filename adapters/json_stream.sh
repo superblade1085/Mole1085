@@ -9,7 +9,7 @@ set -euo pipefail
 export LC_ALL=C
 export LANG=C
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Locate pristine upstream Mole library
@@ -52,6 +52,9 @@ export MOLE_DRY_RUN=1
 export MOLE_NON_INTERACTIVE=1
 export MOLE_TEST_MODE=1
 export MOLE_SKIP_MAIN=1
+
+# Disconnect stdin from any terminal to prevent blocking on interactive prompts.
+exec 0</dev/null
 
 # Duplicate original stdout to fd 3 for pure JSON output.
 # Standard stdout is redirected to /dev/null to silence upstream logs, spinners, and echoes.
@@ -250,9 +253,6 @@ run_category_caches() {
         source "$UPSTREAM_ROOT/lib/clean/caches.sh"
         if declare -f clean_service_worker_cache >/dev/null 2>&1; then
             clean_service_worker_cache "Google Chrome" "$HOME/Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage" || true
-        fi
-        if declare -f clean_python_bytecode_cache_group >/dev/null 2>&1; then
-            clean_python_bytecode_cache_group || true
         fi
         if declare -f clean_project_caches >/dev/null 2>&1; then
             clean_project_caches || true
