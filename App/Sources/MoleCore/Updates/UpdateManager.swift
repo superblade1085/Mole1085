@@ -40,17 +40,41 @@ public final class UpdateManager: @unchecked Sendable {
         self.state = .upToDate
     }
 
-    /// Connects via XPC to `com.mole.helper` and requests graceful shutdown.
-    public static func defaultHelperShutdown() async -> Bool {
+    /// Connects via XPC to `com.mole.helper`, requests graceful shutdown, and awaits completion with timeout.
+    public static func defaultHelperShutdown(timeout: TimeInterval = 2.0) async -> Bool {
         return await withCheckedContinuation { continuation in
             let connection = NSXPCConnection(machServiceName: "com.mole.helper")
-            connection.remoteObjectInterface = NSXPCInterface(with: NSProtocolFromString("MoleHelperProtocol") ?? NSObjectProtocol.self)
+            connection.remoteObjectInterface = NSXPCInterface(with: MoleHelperProtocol.self)
             connection.resume()
 
-            // Safe shutdown attempt with fallback
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.3) {
-                connection.invalidate()
-                continuation.resume(returning: true)
+            var hasResumed = false
+            let lock = NSLock()
+            let safeResume: (Bool) -> Void = { success in
+                lock.lock()
+                defer { lock.unlock() }
+                if !hasResumed {
+                    hasResumed = true
+                    connection.invalidate()
+                    continuation.resume(returning: success)
+                }
+            }
+
+            // Timeout watchdog
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                safeResume(false)
+            }
+
+            let proxy = connection.remoteObjectProxyWithErrorHandler { _ in
+                safeResume(false)
+            }
+
+            guard let helper = proxy as? MoleHelperProtocol else {
+                safeResume(false)
+                return
+            }
+
+            helper.requestGracefulShutdown { success in
+                safeResume(success)
             }
         }
     }

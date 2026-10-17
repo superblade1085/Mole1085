@@ -44,4 +44,11 @@ final class UpdateManagerTests: XCTestCase {
         await manager.checkForUpdates(mockResult: .upToDate)
         XCTAssertEqual(manager.state, .upToDate)
     }
+
+    func testDefaultHelperShutdownTimeoutWhenDaemonAbsent() async {
+        // When com.mole.helper is not installed, defaultHelperShutdown must fail-safe and return false
+        // within the specified timeout without deadlocking.
+        let result = await UpdateManager.defaultHelperShutdown(timeout: 0.1)
+        XCTAssertFalse(result, "Shutdown should return false when daemon is absent")
+    }
 }

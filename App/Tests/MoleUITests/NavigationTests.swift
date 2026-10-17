@@ -70,4 +70,10 @@ final class NavigationTests: XCTestCase {
         )
         _ = onboarding.body
     }
+
+    func testOnboardingPersistenceKey() {
+        XCTAssertEqual(OnboardingView.completedOnboardingKey, "hasCompletedOnboarding")
+        UserDefaults.standard.set(true, forKey: OnboardingView.completedOnboardingKey)
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: OnboardingView.completedOnboardingKey))
+    }
 }

@@ -8,7 +8,11 @@ public struct OnboardingView: View {
     @Bindable public var coordinator: MoleCoordinator
     @Binding public var isPresented: Bool
 
-    @State private var helperStatusString: String = "Not Registered"
+    @State private var isHelperRegistered: Bool = false
+    @State private var registrationError: String? = nil
+    @State private var showingErrorAlert: Bool = false
+
+    public static let completedOnboardingKey = "hasCompletedOnboarding"
 
     public init(coordinator: MoleCoordinator, isPresented: Binding<Bool>) {
         self.coordinator = coordinator
@@ -41,20 +45,30 @@ public struct OnboardingView: View {
                 }
 
                 featureCard(
-                    icon: "wrench.and.screwdriver",
+                    icon: isHelperRegistered ? "checkmark.shield.fill" : "wrench.and.screwdriver",
                     title: "Persistent Privileged Daemon",
-                    subtitle: "Registers Apple's modern SMAppService helper once. Persists across Sparkle 2 app updates without repetitive password dialogs.",
-                    tint: .purple,
-                    actionTitle: "Authorize Daemon",
-                    actionDisabled: false
+                    subtitle: isHelperRegistered
+                        ? "Daemon is active and registered with SMAppService. Survives Sparkle 2 updates seamlessly."
+                        : "Registers Apple's modern SMAppService helper once. Persists across Sparkle 2 app updates without repetitive password dialogs.",
+                    tint: isHelperRegistered ? .green : .purple,
+                    actionTitle: isHelperRegistered ? "Authorized" : "Authorize Daemon",
+                    actionDisabled: isHelperRegistered
                 ) {
                     registerHelperDaemon()
                 }
             }
 
+            if let error = registrationError {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
             HStack {
                 Spacer()
                 Button("Get Started") {
+                    UserDefaults.standard.set(true, forKey: Self.completedOnboardingKey)
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -63,6 +77,9 @@ public struct OnboardingView: View {
         }
         .padding(28)
         .frame(width: 580)
+        .onAppear {
+            checkHelperStatus()
+        }
     }
 
     private var heroHeader: some View {
@@ -130,14 +147,22 @@ public struct OnboardingView: View {
         }
     }
 
+    private func checkHelperStatus() {
+        if #available(macOS 13.0, *) {
+            let service = SMAppService.daemon(plistName: "com.mole.helper.plist")
+            isHelperRegistered = (service.status == .enabled)
+        }
+    }
+
     private func registerHelperDaemon() {
         if #available(macOS 13.0, *) {
             let service = SMAppService.daemon(plistName: "com.mole.helper.plist")
             do {
                 try service.register()
-                helperStatusString = "Registered"
+                isHelperRegistered = (service.status == .enabled)
+                registrationError = nil
             } catch {
-                helperStatusString = "Registration error: \(error.localizedDescription)"
+                registrationError = "Registration error: \(error.localizedDescription)"
             }
         }
     }
