@@ -57,3 +57,17 @@ This ledger records every major architectural decision, constraint, and trade-of
   5. `IsolatedProcess.deinit` reaps orphaned child processes via asynchronous `waitpid` on background utility queues to guarantee zero `<defunct>` zombie leaks.
 * **Trade-off / Cost:** Custom POSIX spawn implementation in Swift instead of relying on high-level `Foundation.Process`.
 * **Impact & Benefit:** Bulletproof subprocess lifecycle, zero UI stutter on ProMotion displays, 0% idle CPU wakeups, and complete process tree cancellation.
+
+---
+
+### Decision 006: Multi-Layer Deletion Safety, APFS Trashing & Dataless Guardrails
+* **Date:** 2026-10-18
+* **Context:** Preventing any accidental data loss, live database corruption, cloud file thrashing, or unintended root deletion during automated or manual cleanups.
+* **Decision:**
+  1. `SafeTrash`: All file/folder removal operations strictly route through Cocoa's native `FileManager.default.trashItem(at:resultingItemURL:)` for APFS cross-volume awareness and recovery capability. Generic shell wildcards (`rm -rf *`) are permanently prohibited.
+  2. System Hierarchies & Symlink Canonicalization: In addition to root exact paths (`/`, `/Library`, `/Applications`, `/Users`, `NSHomeDirectory()`), all paths inside `/System`, `/usr`, `/bin`, `/sbin`, `/private/etc`, `/private/var/db`, `/private/var/root`, `/private/var/run`, `/private/var/audit`, `/etc`, and `/var/db` are rejected via both lexical and `resolvingSymlinksInPath()` canonical checks.
+  3. `DatalessGuard`: Inspects Darwin `st_flags & SF_DATALESS` (`0x40000000`) and `NSURLIsUbiquitousItemKey` without reading payload bytes, preventing scans from triggering multi-gigabyte iCloud background network downloads.
+  4. `DatabaseGuard`: Atomically groups SQLite database files with their companion sidecars (`-wal`, `-shm`, `-journal`) and verifies genuine database extensions (`.db`, `.sqlite`, `.sqlite3`), preventing live database corruption or false classification of arbitrary user files.
+  5. `FullDiskAccess`: Silent canary heuristic (`~/Library/Safari` and `~/Library/Mail`) inspects Darwin `errno` (`EPERM`/`EACCES` vs `ENOENT`) without triggering macOS TCC privacy authorization dialogs.
+* **Trade-off / Cost:** Deletions require writable volume trash support or explicit user authorization for permanent unlinking; requires pre-validating volume capabilities.
+* **Impact & Benefit:** Total immunity against catastrophic system or user file deletion, live database corruption, and accidental cloud bandwidth saturation.
