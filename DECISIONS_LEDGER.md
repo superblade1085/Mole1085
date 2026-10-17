@@ -43,3 +43,17 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Decision:** Every task review, architectural audit, and pre-merge check is conducted by a specialized subagent prompted as a Senior/Principal macOS Systems Architect with decades of hands-on experience in Darwin, XPC, APFS, and modern Swift.
 * **Trade-off / Cost:** Higher initial development scrutiny and iterative fix rounds before tasks are marked complete.
 * **Impact & Benefit:** Catches subtle macOS traps early (e.g. post-`execve` `setpgid` failures, display throttler main-thread deadlocks, APFS dataless stubs).
+
+---
+
+### Decision 005: Atomic Process Group Isolation & On-Demand Display Throttler
+* **Date:** 2026-10-18
+* **Context:** High-throughput streaming from external scan workers (10,000+ lines/sec) must update SwiftUI views at 60 Hz without UI thread starvation, and cancellation must terminate the entire descendant process tree without orphaned zombies.
+* **Decision:**
+  1. Subprocess launching migrated from `Foundation.Process` post-launch `setpgid` (which fails with `EACCES` on Darwin after `execve`) to Darwin `posix_spawnp` using `POSIX_SPAWN_SETPGROUP` with `pgroup = 0`. This guarantees the child becomes a process group leader atomically before code execution.
+  2. `DisplayThrottler` adopts an on-demand coalescing drain pattern that cancels its timer when the buffer is empty, consuming strictly 0% idle CPU wakeups.
+  3. `DispatchQueue.main.sync` was completely prohibited to eliminate UI deadlocks; deliveries route via `queue.async`.
+  4. Active stderr consumption prevents level-triggered GCD spin loops and pipe buffer deadlock (16 KB / 64 KB capacity).
+  5. `IsolatedProcess.deinit` reaps orphaned child processes via asynchronous `waitpid` on background utility queues to guarantee zero `<defunct>` zombie leaks.
+* **Trade-off / Cost:** Custom POSIX spawn implementation in Swift instead of relying on high-level `Foundation.Process`.
+* **Impact & Benefit:** Bulletproof subprocess lifecycle, zero UI stutter on ProMotion displays, 0% idle CPU wakeups, and complete process tree cancellation.
