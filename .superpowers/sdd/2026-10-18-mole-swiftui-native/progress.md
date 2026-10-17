@@ -24,7 +24,7 @@
 - [x] Task 3: Security & APFS Deletion Safety Layer (MoleSafety) (Commit: `3b7321b` - Approved)
 - [x] Task 4: Zero-Trust Privileged Helper Daemon (MoleHelper) (Commit: `0dec503` - Approved)
 - [x] Task 5: Domain Models, State Management & Engine Coordinator (MoleCoordinator) (Commit: `657a355` - Approved)
-- [ ] Task 6: Liquid Glass Design System Components (MoleUI)
+- [x] Task 6: Liquid Glass Design System Components (MoleUI) (Commit: `6a7afa0` - Approved)
 - [ ] Task 7: Navigation & Core Views Implementation
 - [ ] Task 8: Sparkle 2 In-App Updates & Guided Onboarding
 - [ ] Task 9: Automated Upstream Sync & Weekly Release CI Pipeline

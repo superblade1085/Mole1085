@@ -98,4 +98,20 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Treemap calculation runs on category updates; requires immutable `Sendable` value types for cross-task safety.
 * **Impact & Benefit:** Instantaneous UI binding updates, guaranteed thread safety, zero-risk synthetic unit testing, and proportional visual treemap exploration.
 
+---
+
+### Decision 009: Liquid Glass Design System, Specular Borders & Accessibility Overrides
+* **Date:** 2026-10-18
+* **Context:** Delivering cutting-edge Apple Liquid Glass aesthetics targeting macOS 14+ (Sonoma/Sequoia) while strictly respecting macOS Accessibility overrides (Reduce Transparency, Increase Contrast).
+* **Decision:**
+  1. **Dual-Layer Glass Material & Specular Highlights:** Built `AdaptiveGlassContainer` and `SpecularBorder` combining `NSVisualEffectView` HUD materials (`withinWindow` blending) with subtle continuous-corner specular inner strokes (`Color.white.opacity(0.22)` highlight to `Color.black.opacity(0.35)` shadow).
+  2. **Accessibility Fallbacks (Reduce Transparency & Increase Contrast):**
+     - When `reduceTransparency` is active, views switch immediately from translucent blur to solid `Color(nsColor: .windowBackgroundColor)`.
+     - When `colorSchemeContrast == .increased`, borders promote to `1.0pt` solid `GlassTheme.highContrastBorderColor` (`Color.primary.opacity(0.40)`), satisfying Apple HIG Display Accessibility guidelines.
+  3. **AppKit Bridging Guardrails:** `VisualEffectView.updateNSView` guards all property assignments (`material`, `blendingMode`, `state`, `isEmphasized`) with equality checks to eliminate redundant window server invalidations and AppKit layer rebuilds.
+  4. **Defensive Storage Math & Precision Spacing:** `StorageGaugeBar` accounts for inter-segment layout spacing (`HStack(spacing: 2)`) to eliminate sub-pixel and container clipping overflows. Clamps free space against `[0, totalBytes]` and reclaimable against available `usedBytes` to defend against APFS purgeable anomalies.
+* **Trade-off / Cost:** Requires testing across combinations of light/dark mode and accessibility settings.
+* **Impact & Benefit:** Flawless Liquid Glass aesthetics, zero layout overflow, smooth CoreAnimation transitions, and 100% compliance with macOS Accessibility standards.
+
+
 
