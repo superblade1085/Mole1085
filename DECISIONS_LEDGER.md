@@ -71,3 +71,18 @@ This ledger records every major architectural decision, constraint, and trade-of
   5. `FullDiskAccess`: Silent canary heuristic (`~/Library/Safari` and `~/Library/Mail`) inspects Darwin `errno` (`EPERM`/`EACCES` vs `ENOENT`) without triggering macOS TCC privacy authorization dialogs.
 * **Trade-off / Cost:** Deletions require writable volume trash support or explicit user authorization for permanent unlinking; requires pre-validating volume capabilities.
 * **Impact & Benefit:** Total immunity against catastrophic system or user file deletion, live database corruption, and accidental cloud bandwidth saturation.
+
+---
+
+### Decision 007: Zero-Trust XPC Peer Audit Token Verification & SMAppService Lifecycle
+* **Date:** 2026-10-18
+* **Context:** Securing privileged helper IPC (`com.mole.helper`) against unauthenticated local processes, PID reuse / spoofing attacks, and ensuring seamless daemon persistence across Sparkle 2 updates.
+* **Decision:**
+  1. **Strict Darwin Audit Token Verification (`audit_token_t`):** The helper daemon extracts peer audit tokens directly from `NSXPCConnection.value(forKey: "auditToken")` as an `NSValue` (extracting the 32-byte `audit_token_t`). PID-based lookups (`kSecGuestAttributePid`) are strictly prohibited to prevent PID-recycling spoofing.
+  2. **Security Code Requirement Grammar:** Enforces Developer ID and Apple Development certificate chains pinned to the designated Apple Team ID using strict CSReq operator precedence:
+     `anchor apple generic and identifier "<bundleID>" and ((certificate leaf[Apple Development]) or (certificate 1[Apple Developer ID CA] and certificate leaf[Developer ID])) and certificate leaf[subject.OU] == "<teamID>"`
+  3. **Launchd & Sparkle 2 Persistence:** Configured `SMAppService.daemon` with `AssociatedBundleIdentifiers` (`com.mole.MoleApp`) in `com.mole.helper.plist`. The daemon registers once at install/onboarding, persisting across Sparkle 2 updates without repeated admin authorization prompts.
+  4. **Non-Blocking Graceful Shutdown:** `requestGracefulShutdown` sends the XPC response before asynchronously triggering termination, preventing socket disconnect errors and allowing safe shutdown for testing and updates.
+* **Trade-off / Cost:** Requires code-signing with a valid Developer ID or Development certificate for production XPC communication; unit test runner uses explicit mock shutdown handler and Darwin audit token introspection.
+* **Impact & Benefit:** Bulletproof privileged helper architecture with zero attack surface for local privilege escalation, compliant with macOS 14+ Background Task Management (BTM) policies.
+
