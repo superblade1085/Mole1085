@@ -25,12 +25,46 @@ final class ScaffoldingTests: XCTestCase {
         
         XCTAssertTrue(FileManager.default.fileExists(atPath: adapterScript.path), "adapters/json_stream.sh must exist")
         
+        // Create an isolated synthetic mock home directory in /tmp to guarantee ZERO access to user files
+        // and prevent macOS TCC privacy dialogs during test execution.
+        let mockHome = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("mole-mock-home-\(UUID().uuidString)")
+        let fileManager = FileManager.default
+        
+        defer {
+            try? fileManager.removeItem(at: mockHome)
+        }
+        
+        // Setup synthetic mock directories
+        let mockDevCache = mockHome.appendingPathComponent("Library/Developer/Xcode/DerivedData/SampleApp")
+        let mockAppCache = mockHome.appendingPathComponent("Library/Caches/com.example.mockapp")
+        let mockDownloads = mockHome.appendingPathComponent("Downloads")
+        let mockNpmCache = mockHome.appendingPathComponent(".npm/_cacache")
+        
+        try fileManager.createDirectory(at: mockDevCache, withIntermediateDirectories: true)
+        try "mock derived data".write(to: mockDevCache.appendingPathComponent("build.log"), atomically: true, encoding: .utf8)
+        
+        try fileManager.createDirectory(at: mockAppCache, withIntermediateDirectories: true)
+        try "mock app cache".write(to: mockAppCache.appendingPathComponent("cache.db"), atomically: true, encoding: .utf8)
+        
+        try fileManager.createDirectory(at: mockDownloads, withIntermediateDirectories: true)
+        try "mock installer".write(to: mockDownloads.appendingPathComponent("mock_installer.pkg"), atomically: true, encoding: .utf8)
+        
+        try fileManager.createDirectory(at: mockNpmCache, withIntermediateDirectories: true)
+        try "mock npm".write(to: mockNpmCache.appendingPathComponent("dummy_index"), atomically: true, encoding: .utf8)
+        
         let testedCategories = ["dev", "caches", "user", "all"]
         
         for category in testedCategories {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
             process.arguments = [adapterScript.path, category]
+            
+            // Strictly isolate environment to synthetic mock HOME and standard POSIX PATH
+            var env = ProcessInfo.processInfo.environment
+            env["HOME"] = mockHome.path
+            env["USER"] = "mockuser"
+            env["TMPDIR"] = NSTemporaryDirectory()
+            process.environment = env
             
             let pipe = Pipe()
             process.standardOutput = pipe

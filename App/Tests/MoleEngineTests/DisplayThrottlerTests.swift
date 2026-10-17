@@ -15,6 +15,33 @@ final class DisplayThrottlerTests: XCTestCase {
         }
     }
 
+    private final class ThreadSafeBox<T>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: T
+
+        init(_ value: T) {
+            self.value = value
+        }
+
+        func get() -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func set(_ newValue: T) {
+            lock.lock()
+            defer { lock.unlock() }
+            value = newValue
+        }
+
+        func mutate(_ transform: (inout T) -> Void) {
+            lock.lock()
+            defer { lock.unlock() }
+            transform(&value)
+        }
+    }
+
     func testThrottlerBatchesRapidEmits() async throws {
         let expectation = expectation(description: "All items received")
         let collector = BatchCollector()
@@ -46,16 +73,38 @@ final class DisplayThrottlerTests: XCTestCase {
     }
 
     func testThrottlerFlushDeliversImmediately() {
-        var receivedBatches: [[String]] = []
+        let box = ThreadSafeBox<[[String]]>([])
         let throttler = DisplayThrottler<String>(interval: 0.5, queue: .global()) { batch in
-            receivedBatches.append(batch)
+            box.mutate { $0.append(batch) }
         }
 
         throttler.emit(value: "immediate_1")
         throttler.emit(value: "immediate_2")
         throttler.flush()
 
-        XCTAssertEqual(receivedBatches, [["immediate_1", "immediate_2"]])
+        XCTAssertEqual(box.get(), [["immediate_1", "immediate_2"]])
+        throttler.finish()
+    }
+
+    func testThrottlerMainQueueDeliveryDoesNotDeadlock() async throws {
+        let expectation = expectation(description: "Delivered to main queue")
+        let box = ThreadSafeBox<Bool>(false)
+
+        let throttler = DisplayThrottler<String>(interval: 0.01, queue: .main) { batch in
+            XCTAssertTrue(Thread.isMainThread)
+            if batch.contains("ping") {
+                box.set(true)
+                expectation.fulfill()
+            }
+        }
+
+        Task.detached {
+            throttler.emit(value: "ping")
+            throttler.flush()
+        }
+
+        await fulfillment(of: [expectation], timeout: 2.0)
+        XCTAssertTrue(box.get())
         throttler.finish()
     }
 }

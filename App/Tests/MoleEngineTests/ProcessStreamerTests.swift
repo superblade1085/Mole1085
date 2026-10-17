@@ -99,4 +99,31 @@ final class ProcessStreamerTests: XCTestCase {
         XCTAssertFalse(ProcessGroupManager.isProcessRunning(pid: 0))
         XCTAssertFalse(ProcessGroupManager.isProcessRunning(pid: -1))
     }
+
+    func testPosixSpawnProcessGroupIsolation() throws {
+        let proc = try IsolatedProcess(
+            executable: "/bin/sleep",
+            arguments: ["5"],
+            environment: nil,
+            workingDirectory: nil
+        ) { _, _ in }
+
+        let pid = proc.pid
+        XCTAssertGreaterThan(pid, 1)
+
+        let pgid = getpgid(pid)
+        XCTAssertEqual(pgid, pid, "Subprocess PGID must be identical to its PID due to POSIX_SPAWN_SETPGROUP")
+
+        ProcessGroupManager.terminateGroup(pid: pid, gracePeriod: 0.05)
+    }
+
+    func testLineBufferDecodesLosslessUtf8() {
+        let buffer = LineBuffer()
+        // Sequence with invalid UTF-8 byte 0xFF
+        let data = Data([0x68, 0x65, 0x6C, 0x6C, 0x6F, 0xFF, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x0A])
+        let lines = buffer.append(data)
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertTrue(lines[0].contains("hello"))
+        XCTAssertTrue(lines[0].contains("world"))
+    }
 }
