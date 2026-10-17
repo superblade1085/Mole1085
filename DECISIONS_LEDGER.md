@@ -113,5 +113,19 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Requires testing across combinations of light/dark mode and accessibility settings.
 * **Impact & Benefit:** Flawless Liquid Glass aesthetics, zero layout overflow, smooth CoreAnimation transitions, and 100% compliance with macOS Accessibility standards.
 
+---
+
+### Decision 010: Navigation Split View, Dual-Mode Storage Explorer & TCC Interactive Guarding
+* **Date:** 2026-10-18
+* **Context:** Providing complete feature parity with upstream Mole across 6 distinct workflows, dual-mode storage explorer (Category Breakdown vs Proportional Treemap), and rigorous TCC protection against accidental unauthorized deletions.
+* **Decision:**
+  1. **Sidebar Navigation & Vibrancy:** Implemented `SidebarView` using `NavigationSplitView` with AppKit `NSVisualEffectView` `.sidebar` blending and `.scrollContentBackground(.hidden)`, routing across 6 core workflows (`Clean`, `Analyze`, `Software`, `Optimize`, `Status`, `History`).
+  2. **Dual-Mode Clean Explorer:** Built segmented switching between Category Breakdown (with categorized safety badges: Guaranteed Safe in green, Rebuildable in blue, Dead Leftover in purple) and interactive Proportional Treemap.
+  3. **Strict TCC Interactive Guardrails:** Both `CleanView` list rows and `AnalyzeTreemapView` interactive blocks enforce strict guards preventing selection of TCC-protected categories when Full Disk Access is absent. `MoleCoordinator.selectAllCategories()` automatically skips TCC-protected items when FDA is ungranted.
+  4. **Native Cocoa Confirmation:** Enforces macOS `.confirmationDialog` detailing exact byte count and APFS trashing semantics before triggering cleanup.
+* **Trade-off / Cost:** TCC-protected items require manual authorization via System Settings to become selectable.
+* **Impact & Benefit:** Immersive macOS experience, zero risk of accidental unauthorized deletion prompts, and total clarity on cleanup safety levels.
+
+
 
 
