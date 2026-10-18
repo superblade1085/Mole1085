@@ -1,0 +1,167 @@
+name: Automated Upstream Sync & Weekly Release
+
+on:
+  schedule:
+    # Run every Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Force release artifact creation even without upstream changes'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-and-verify:
+    name: Sync, Verify & Build Release
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch Upstream Repository
+        run: |
+          git remote add upstream https://github.com/tw93/Mole.git 2>/dev/null || \
+          git remote set-url upstream https://github.com/tw93/Mole.git
+          git fetch upstream main --tags
+
+      - name: Check for New Upstream Commits
+        id: upstream_diff
+        run: |
+          BEHIND_COUNT=$(git rev-list --count HEAD..upstream/main || echo 0)
+          echo "Commits behind upstream: $BEHIND_COUNT"
+          echo "behind_count=$BEHIND_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Perform Non-Fast-Forward Merge
+        id: merge_step
+        if: steps.upstream_diff.outputs.behind_count > 0
+        run: |
+          echo "Merging upstream/main with --no-ff..."
+          if git merge --no-ff upstream/main -m "chore(sync): automated weekly upstream sync with tw93/Mole [$(date +'%Y-%m-%d')]"; then
+            echo "merge_success=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Merge conflict detected! Aborting merge..."
+            git merge --abort || true
+            echo "merge_success=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Setup System Tooling & Dependencies
+        run: |
+          brew install bats-core shellcheck coreutils parallel
+          echo "Tooling installed successfully."
+
+      - name: Setup Go Runtime
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.22'
+          check-latest: true
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+          swift --version
+
+      - name: Run 4-Tier Verification Gate (Preflight Check)
+        env:
+          TMPDIR: /tmp
+          CLANG_MODULE_CACHE_PATH: /tmp/clang-cache
+          MOLE_TEST_NO_AUTH: "1"
+        run: |
+          chmod +x scripts/preflight_check.sh
+          ./scripts/preflight_check.sh
+
+      - name: Build Universal 2 Native Binary
+        id: build_app
+        run: |
+          echo "Building Universal 2 (arm64 + x86_64) binaries..."
+          mkdir -p build/universal
+          swift build -c release --package-path App --arch arm64 --arch x86_64
+          cp -r App/.build/apple/Products/Release/* build/universal/ 2>/dev/null || \
+          cp -r App/.build/release/* build/universal/
+          echo "Build complete."
+
+      - name: Package Release Archive & Compute Checksums
+        id: package_release
+        run: |
+          RELEASE_TAG="v$(date +'%Y.%m.%d')"
+          ARCHIVE_NAME="Mole-macOS-${RELEASE_TAG}.zip"
+          
+          mkdir -p dist
+          (cd build/universal && zip -r "../../dist/${ARCHIVE_NAME}" .)
+          
+          SHA256_HASH=$(shasum -a 256 "dist/${ARCHIVE_NAME}" | awk '{print $1}')
+          FILE_SIZE=$(stat -f%z "dist/${ARCHIVE_NAME}")
+          
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256_HASH" >> "$GITHUB_OUTPUT"
+          echo "file_size=$FILE_SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Push Synchronized Merge to Main
+        if: steps.upstream_diff.outputs.behind_count > 0
+        run: |
+          git push origin main
+
+      - name: Create GitHub Release & Update Sparkle Appcast Item
+        if: steps.upstream_diff.outputs.behind_count > 0 || github.event.inputs.force_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.package_release.outputs.release_tag }}"
+          ARCHIVE="dist/${{ steps.package_release.outputs.archive_name }}"
+          
+          cat << RELEASE_NOTES > release_notes.md
+          ## Mole for Mac — Weekly Synchronized Release ($TAG)
+
+          ### Upstream Synchronized Status
+          - Synced with upstream [tw93/Mole](https://github.com/tw93/Mole) main branch.
+          - Passed 4-Tier Automated Verification Suite:
+            - Tier 1: Upstream CLI style & lint checks
+            - Tier 2: Bats shell contract & unit tests
+            - Tier 3: Go engine & command tests
+            - Tier 4: Native macOS Swift/SwiftUI unit & integration tests
+
+          ### Artifact Information
+          - File: \`${{ steps.package_release.outputs.archive_name }}\`
+          - SHA256: \`${{ steps.package_release.outputs.sha256 }}\`
+          - Architecture: Universal 2 (\`arm64\` + \`x86_64\`)
+          - Target OS: macOS 14.0+ (Sonoma, Sequoia)
+          RELEASE_NOTES
+
+          gh release create "$TAG" "$ARCHIVE" \
+            --title "Mole for Mac $TAG" \
+            --notes-file release_notes.md
+
+      - name: Notify on Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "🚨 Automated Upstream Sync Failed [$(date +'%Y-%m-%d')]" \
+            --body "The weekly upstream sync workflow failed during execution. Please check the workflow run logs for details on merge conflicts or test failures.
+
+          **Action Required:**
+          1. Check merge conflicts if \`git merge --no-ff upstream/main\` failed.
+          2. Run \`./scripts/preflight_check.sh\` locally to reproduce the failure.
+          3. Address any failing Bats or Swift tests and push using a merge commit."

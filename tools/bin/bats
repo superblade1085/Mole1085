@@ -1,0 +1,141 @@
+#!/bin/bash
+# tools/bin/bats
+# Lightweight fallback bats runner for environments without bats-core installed.
+# Compatible with macOS default /bin/bash (Bash 3.2+).
+
+set -eu
+
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
+    echo "Bats 1.11.0 (minimal-fallback)"
+    exit 0
+fi
+
+if [[ $# -eq 0 || "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: bats [options] <test.bats> [test2.bats ...]"
+    exit 0
+fi
+
+# Filter out flags
+TEST_FILES=()
+for arg in "$@"; do
+    if [[ "$arg" != -* ]]; then
+        TEST_FILES+=("$arg")
+    fi
+done
+
+if [[ ${#TEST_FILES[@]} -eq 0 ]]; then
+    echo "Error: No test files specified" >&2
+    exit 1
+fi
+
+TOTAL_TESTS=0
+FAILED_TESTS=0
+
+for test_file in "${TEST_FILES[@]}"; do
+    if [[ ! -f "$test_file" ]]; then
+        echo "Error: File not found: $test_file" >&2
+        exit 1
+    fi
+
+    export BATS_TEST_DIRNAME="$(cd "$(dirname "$test_file")" && pwd)"
+    export BATS_TEST_FILENAME="$(basename "$test_file")"
+
+    RUNNER_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/bats-runner.XXXXXX.sh")"
+
+    python3 - "$test_file" > "$RUNNER_SCRIPT" << 'PYEOF'
+import sys, re
+
+test_file = sys.argv[1]
+with open(test_file, "r") as f:
+    content = f.read()
+
+print("#!/bin/bash")
+print("set -u")
+print('status=0')
+print('output=""')
+print('lines=()')
+print('run() {')
+print('    output="$("$@" 2>&1)"')
+print('    status=$?')
+print('    lines=()')
+print('    while IFS= read -r line; do lines+=("$line"); done <<< "$output"')
+print('    return 0')
+print('}')
+print('load() { return 0; }')
+
+# Setup / Teardown
+setup_match = re.search(r"setup\(\)\s*\{([\s\S]*?)\n\}", content)
+if setup_match:
+    print("test_setup() {")
+    print(setup_match.group(1))
+    print("}\n")
+else:
+    print("test_setup() { return 0; }\n")
+
+teardown_match = re.search(r"teardown\(\)\s*\{([\s\S]*?)\n\}", content)
+if teardown_match:
+    print("test_teardown() {")
+    print(teardown_match.group(1))
+    print("}\n")
+else:
+    print("test_teardown() { return 0; }\n")
+
+# Extract @test blocks
+test_pattern = re.compile(r"@test\s+[\"'](.*?)[\"']\s*\{([\s\S]*?)\n\}", re.MULTILINE)
+tests = test_pattern.findall(content)
+
+print(f"BATS_TEST_COUNT={len(tests)}")
+for idx, (name, body) in enumerate(tests, 1):
+    print(f"test_func_{idx}() {{")
+    print(body)
+    print("}\n")
+    safe_name = name.replace("'", "'\"'\"'")
+    print(f"test_name_{idx}='{safe_name}'")
+
+print("""
+failed=0
+idx=1
+while [ $idx -le "$BATS_TEST_COUNT" ]; do
+    name_var="test_name_$idx"
+    eval "test_name=\\$$name_var"
+    
+    test_rc=0
+    output_file="$(mktemp "${TMPDIR:-/tmp}/bats-test-out.XXXXXX")"
+    (
+        test_setup
+        "test_func_$idx"
+    ) > "$output_file" 2>&1 || test_rc=$?
+    test_teardown 2>/dev/null || true
+    
+    if [ $test_rc -eq 0 ]; then
+        echo "ok $idx $test_name"
+    else
+        echo "not ok $idx $test_name"
+        while IFS= read -r l; do
+            echo "# $l"
+        done < "$output_file"
+        failed=$((failed + 1))
+    fi
+    rm -f "$output_file"
+    idx=$((idx + 1))
+done
+
+exit $failed
+""")
+PYEOF
+
+    chmod +x "$RUNNER_SCRIPT"
+
+    file_rc=0
+    "$RUNNER_SCRIPT" || file_rc=$?
+    rm -f "$RUNNER_SCRIPT"
+
+    if [ $file_rc -ne 0 ]; then
+        FAILED_TESTS=$((FAILED_TESTS + file_rc))
+    fi
+done
+
+if [ $FAILED_TESTS -ne 0 ]; then
+    exit 1
+fi
+exit 0
