@@ -26,7 +26,7 @@
 - [x] Task 5: Domain Models, State Management & Engine Coordinator (MoleCoordinator) (Commit: `657a355` - Approved)
 - [x] Task 6: Liquid Glass Design System Components (MoleUI) (Commit: `6a7afa0` - Approved)
 - [x] Task 7: Navigation & Core Views Implementation (Commit: `4f86a25` - Approved)
-- [ ] Task 8: Sparkle 2 In-App Updates & Guided Onboarding
+- [x] Task 8: Sparkle 2 In-App Updates & Guided Onboarding (Commit: `e27b8fa` - Approved)
 - [ ] Task 9: Automated Upstream Sync & Weekly Release CI Pipeline
 - [ ] Task 10: End-to-End Verification, Decisions Ledger & Principal Review
 

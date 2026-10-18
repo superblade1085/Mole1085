@@ -126,6 +126,19 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** TCC-protected items require manual authorization via System Settings to become selectable.
 * **Impact & Benefit:** Immersive macOS experience, zero risk of accidental unauthorized deletion prompts, and total clarity on cleanup safety levels.
 
+---
+
+### Decision 011: Sparkle 2 In-App Updates, Typed Helper Daemon RPC & Onboarding Persistence
+* **Date:** 2026-10-18
+* **Context:** Preventing Mach socket activation deadlocks and file descriptor locks during Sparkle 2 in-app appcast updates, and establishing persistent first-launch onboarding state with live `SMAppService.daemon` status reflection.
+* **Decision:**
+  1. **Shared Protocol Placement (`MoleCore/Protocols/MoleHelperProtocol.swift`):** Moved `@objc(MoleHelperProtocol)` to `MoleCore` (re-exported by `MoleHelper`), enabling `UpdateManager` to perform static, typed RPC without circular target dependencies.
+  2. **Deadlock-Safe XPC Helper Shutdown (`UpdateManager.defaultHelperShutdown`):** Implemented typed `requestGracefulShutdown` dispatch over `NSXPCConnection` wrapped in thread-safe single-resume locking (`NSLock`) and a 2.0s dispatch timeout watchdog. Signals `com.mole.helper` to exit cleanly before Sparkle swaps the application bundle on disk, preventing binary lock errors.
+  3. **First-Launch Onboarding Persistence:** `OnboardingView` records `UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")` on dismissal and dynamically queries `SMAppService.daemon(plistName:).status` on appear, surfacing active authorization with green checkmarks and disabling redundant prompts.
+* **Trade-off / Cost:** Adds timeout watchdog and XPC connection teardown overhead during updates.
+* **Impact & Benefit:** Seamless Sparkle 2 updates without busy file lock crashes, zero recurring onboarding sheets, and clear visibility into persistent helper daemon status.
+
+
 
 
 
