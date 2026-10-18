@@ -6,3 +6,5 @@
 **/.swiftpm/
 mole-cli-source/
 .sparkle_keys/
+dist/*.app/
+dist/*.zip

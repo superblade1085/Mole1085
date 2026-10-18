@@ -9,6 +9,10 @@ For all future developments, changes, refactors, and updates:
 * Never present any UI, mockup, visual artifact, or design deliverable without first performing an exhaustive, hands-on quality check (layout integrity, zero overlapping symbols/icons, zero truncated/wrapping badges, correct responsive bounds, and precise color harmony).
 * When designing, reviewing, or validating UI deliverables, always configure and dispatch a **Senior or Principal Design Architect / Lead Apple HIG Designer** to audit layouts, typography, spacing, and interaction before presenting to the user.
 
+## Superpowers Framework Mandate
+* For any future build, design, architectural, UI/UX, logic, database, or workflow changes to any app, user interface, or system: you MUST strictly use the **Superpowers framework of skills** (e.g. `using-superpowers`, `verification-before-completion`, `release-flow`, `test-driven-development`, `systematic-debugging`, `executing-plans`, etc.).
+* Always invoke the relevant skills from the framework before any response or action, follow their protocols and checklists meticulously, and maintain task tracking artifacts for multi-step progress tracking.
+
 ## Project Architecture & Engineering Mandates
 * **Stack:** Native macOS Swift / SwiftUI targeting macOS 14.0+ (Sonoma/Sequoia) using modern `@Observable` state management and Apple Liquid Glass design standards (`.ultraThinMaterial`, SF Symbols 6, vibrancy).
 * **Privilege Architecture:** Use Apple's modern `SMAppService.daemon` with zero-trust XPC peer audit token verification (`SecCodeCopyGuestWithAttributes`). Minimize admin prompts; helper persists and survives Sparkle 2 updates seamlessly.

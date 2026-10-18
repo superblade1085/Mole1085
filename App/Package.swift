@@ -7,6 +7,8 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
+        .executable(name: "MoleApp", targets: ["MoleApp"]),
+        .executable(name: "MoleHelperDaemon", targets: ["MoleHelperDaemon"]),
         .library(name: "MoleCore", targets: ["MoleCore"]),
         .library(name: "MoleEngine", targets: ["MoleEngine"]),
         .library(name: "MoleUI", targets: ["MoleUI"]),
@@ -14,6 +16,21 @@ let package = Package(
     ],
     dependencies: [],
     targets: [
+        .executableTarget(
+            name: "MoleApp",
+            dependencies: [
+                "MoleCore",
+                "MoleEngine",
+                "MoleUI"
+            ]
+        ),
+        .executableTarget(
+            name: "MoleHelperDaemon",
+            dependencies: [
+                "MoleCore",
+                "MoleHelper"
+            ]
+        ),
         .target(
             name: "MoleCore",
             dependencies: []

@@ -5,15 +5,19 @@
     <key>CFBundleIdentifier</key>
     <string>com.mole.MoleApp</string>
     <key>CFBundleName</key>
-    <string>Mole</string>
+    <string>Mole for Mac</string>
     <key>CFBundleDisplayName</key>
     <string>Mole for Mac</string>
+    <key>CFBundleExecutable</key>
+    <string>MoleApp</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.62.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>1620</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSPrincipalClass</key>

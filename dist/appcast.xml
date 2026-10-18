@@ -6,5 +6,18 @@
     <description>Most recent updates for Mole for Mac.</description>
     <language>en</language>
     <!-- Public Ed25519 Key for Sparkle 2 verification: BOJd/2gtWBcIb4tYJsvD6qLnQgPnlmgChaCwV0y0FWE= -->
+    <item>
+      <title>Version 1.62.0: Liquid Glass Edition &amp; Simulation Engine</title>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 +0000</pubDate>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/superblade1085/Mole1085/releases/tag/V1.62.0</sparkle:releaseNotesLink>
+      <enclosure
+        url="https://github.com/superblade1085/Mole1085/releases/download/V1.62.0/Mole-for-Mac-1.62.0.zip"
+        sparkle:edSignature="/UiKJg5PbkaHCMonbNrkGGdzqcouNxbitseDJuiJTHy2ESyxBa3uhcNwuoCNNhxDTG29Vr5Gp7xhoa5KweA7Bw=="
+        sparkle:version="1620"
+        sparkle:shortVersionString="1.62.0"
+        length="1932951"
+        type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
