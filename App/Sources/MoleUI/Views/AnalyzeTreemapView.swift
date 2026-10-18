@@ -24,28 +24,60 @@ public struct AnalyzeTreemapView: View {
     }
 
     private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Disk Space Treemap")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Proportional visualization of reclaimable storage")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if coordinator.isScanning {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Button {
-                    Task {
-                        try? await coordinator.scanReclaimableSpace()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Disk Space Treemap")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Proportional visualization of reclaimable storage")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if coordinator.isScanning {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button {
+                        Task {
+                            try? await coordinator.scanReclaimableSpace()
+                        }
+                    } label: {
+                        Label("Re-scan", systemImage: "arrow.clockwise")
                     }
-                } label: {
-                    Label("Re-scan", systemImage: "arrow.clockwise")
+                    .help("Re-scan system to refresh treemap")
                 }
             }
+
+            // Breadcrumbs Bar
+            HStack(spacing: 6) {
+                Image(systemName: "internaldrive")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Macintosh HD")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Text("~/Library/Caches")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let hovered = hoveredNodeID, let node = coordinator.treemapRoot?.children.first(where: { $0.id == hovered }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Text(node.name)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(GlassTheme.warmAmber)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(Capsule())
         }
     }
 
@@ -82,7 +114,10 @@ public struct AnalyzeTreemapView: View {
                 .fill(GlassTheme.gradient(for: group).opacity(isSelected ? (isHovered ? 1.0 : 0.85) : 0.25))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.15), lineWidth: isHovered ? 1.5 : 0.5)
+                        .strokeBorder(
+                            isHovered ? GlassTheme.specularHighlightColor : Color.white.opacity(0.15),
+                            lineWidth: isHovered ? 1.5 : 0.5
+                        )
                 )
 
             if rect.width > 60 && rect.height > 35 {
@@ -92,9 +127,12 @@ public struct AnalyzeTreemapView: View {
                         .fontWeight(.semibold)
                         .lineLimit(1)
                         .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
                     Text(DiskSpaceInfo.format(bytes: node.size))
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.85))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white.opacity(0.92))
+                        .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
                 }
                 .padding(4)
             }

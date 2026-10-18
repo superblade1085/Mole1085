@@ -39,7 +39,7 @@ public struct SidebarView: View {
             Spacer()
 
             sidebarFooter
-                .padding(14)
+                .padding(12)
         }
         .background(
             VisualEffectView(material: .sidebar, blendingMode: .behindWindow, state: .active)
@@ -51,13 +51,14 @@ public struct SidebarView: View {
             ZStack {
                 Circle()
                     .fill(LinearGradient(
-                        colors: [Color.blue, Color.purple],
+                        colors: [GlassTheme.warmAmber.opacity(0.85), GlassTheme.atmosphericBlue.opacity(0.85)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
                     .frame(width: 32, height: 32)
+                    .specularBorder(cornerRadius: 16, lineWidth: 0.5)
                 Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
             }
 
@@ -66,7 +67,7 @@ public struct SidebarView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                 Text("Liquid Glass Edition")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -74,7 +75,7 @@ public struct SidebarView: View {
     }
 
     private var sidebarFooter: some View {
-        AdaptiveGlassContainer(padding: 10) {
+        AdaptiveGlassContainer(padding: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Macintosh HD")
@@ -82,30 +83,34 @@ public struct SidebarView: View {
                         .fontWeight(.semibold)
                     Spacer()
                     Text(DiskSpaceInfo.format(bytes: coordinator.diskSpace.freeBytes) + " Free")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 StorageGaugeBar(diskSpace: coordinator.diskSpace, height: 8)
 
                 if coordinator.fullDiskAccessGranted {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.green)
+                            .font(.caption)
+                            .foregroundStyle(GlassTheme.sageGreen)
                         Text("FDA Active")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(GlassTheme.sageGreen)
                     }
+                    .help("Full Disk Access granted: deep system log inspection enabled")
                 } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
+                    HStack(spacing: 5) {
+                        Image(systemName: "shield.fill")
+                            .font(.caption)
+                            .foregroundStyle(GlassTheme.warmAmber)
                         Text("Standard Mode")
-                            .font(.system(size: 10))
+                            .font(.caption)
+                            .fontWeight(.medium)
                             .foregroundStyle(.secondary)
                     }
+                    .help("Standard Mode: User caches scan safely without special permissions")
                 }
             }
         }
@@ -126,6 +131,8 @@ public struct SidebarView: View {
             StatusView(coordinator: coordinator)
         case .history:
             HistoryView(coordinator: coordinator)
+        case .settings:
+            SettingsView(coordinator: coordinator)
         }
     }
 }

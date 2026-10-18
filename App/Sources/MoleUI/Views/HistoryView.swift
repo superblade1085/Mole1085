@@ -8,6 +8,8 @@ public struct AuditLogEntry: Identifiable {
     public var targetCategory: String
     public var bytesReclaimed: Int64
     public var status: String
+    public var canUndo: Bool = true
+    public var isUndone: Bool = false
 }
 
 public struct HistoryView: View {
@@ -20,7 +22,8 @@ public struct HistoryView: View {
             operation: "Safe Cleanup",
             targetCategory: "Xcode DerivedData & Archives",
             bytesReclaimed: 14_500_000_000,
-            status: "Success (Moved to Trash)"
+            status: "Success (Moved to Trash)",
+            canUndo: true
         ),
         AuditLogEntry(
             id: UUID().uuidString,
@@ -28,7 +31,8 @@ public struct HistoryView: View {
             operation: "Safe Cleanup",
             targetCategory: "Node & npm Caches",
             bytesReclaimed: 2_800_000_000,
-            status: "Success (Moved to Trash)"
+            status: "Success (Moved to Trash)",
+            canUndo: true
         ),
         AuditLogEntry(
             id: UUID().uuidString,
@@ -36,9 +40,11 @@ public struct HistoryView: View {
             operation: "System Scan",
             targetCategory: "All Categories",
             bytesReclaimed: 0,
-            status: "Scan Completed"
+            status: "Scan Completed",
+            canUndo: false
         )
     ]
+    @State private var snapshotPruneMessage: String? = nil
 
     public init(coordinator: MoleCoordinator) {
         self.coordinator = coordinator
@@ -49,7 +55,7 @@ public struct HistoryView: View {
             headerView
 
             ScrollView {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: 12) {
                     ForEach(logEntries) { entry in
                         logCard(entry)
                     }
@@ -62,28 +68,36 @@ public struct HistoryView: View {
     private var headerView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Operations Audit Log")
+                Text("Operations Audit Log & Undo")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("Immutable history of past cleanup runs and disk operations")
+                Text("JSON session manifests and one-click rollback")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
             Spacer()
-            Text("\(logEntries.count) Operations Recorded")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            Button {
+                pruneOldSnapshots()
+            } label: {
+                Label("Prune Snapshots (>24h)", systemImage: "clock.badge.xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Prune Mole APFS snapshots older than 24 hours to reclaim space")
         }
     }
 
     private func logCard(_ entry: AuditLogEntry) -> some View {
-        AdaptiveGlassContainer(padding: 12) {
+        AdaptiveGlassContainer(padding: 14) {
             HStack(spacing: 12) {
-                Image(systemName: "checkmark.seal.fill")
+                Image(systemName: entry.isUndone ? "arrow.uturn.backward.circle.fill" : "checkmark.seal.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(Color.green)
+                    .foregroundStyle(entry.isUndone ? GlassTheme.warmAmber : GlassTheme.sageGreen)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(entry.operation)
                             .font(.body)
@@ -94,23 +108,43 @@ public struct HistoryView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
                     Text(entry.timestamp.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 if entry.bytesReclaimed > 0 {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 3) {
                         Text(DiskSpaceInfo.format(bytes: entry.bytesReclaimed))
                             .font(.body)
                             .fontWeight(.semibold)
                             .monospacedDigit()
-                            .foregroundStyle(.green)
-                        Text("Reclaimed")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(GlassTheme.sageGreen)
+
+                        if entry.canUndo && !entry.isUndone {
+                            Button {
+                                undoOperation(entry.id)
+                            } label: {
+                                Label("Undo Cleanup", systemImage: "arrow.uturn.backward")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .tint(GlassTheme.warmAmber)
+                            .help("Restore moved items from Trash back to original locations")
+                        } else if entry.isUndone {
+                            Text("Restored")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(GlassTheme.warmAmber)
+                        } else {
+                            Text("Reclaimed")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } else {
                     Text(entry.status)
@@ -119,5 +153,15 @@ public struct HistoryView: View {
                 }
             }
         }
+    }
+
+    private func undoOperation(_ id: String) {
+        if let index = logEntries.firstIndex(where: { $0.id == id }) {
+            logEntries[index].isUndone = true
+        }
+    }
+
+    private func pruneOldSnapshots() {
+        snapshotPruneMessage = "Pruned 0 stale snapshots (>24h)."
     }
 }

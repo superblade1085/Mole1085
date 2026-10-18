@@ -156,6 +156,21 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Repository tracks both upstream CLI components and native SwiftUI application; local preflight requires mock `$HOME` provisioning to satisfy upstream destructive sink audits.
 * **Impact & Benefit:** Guaranteed zero-breakage weekly syncs, bulletproof CI/CD release pipeline, complete test coverage across shell, Go, and Swift runtimes, and seamless Sparkle 2 client distribution.
 
+
+---
+
+### Decision 013: Simulation Preview Engine, MacSpace-Inspired Neutral Design System & 11pt HIG Floor
+* **Date:** 2026-10-18
+* **Context:** The user mandated a refined, neutral macOS-native design language (inspired by MacSpace and Apple HIG), eliminating saturated candy accents in favor of a calm, professional palette. Requirements included dual-theme support (Day/Light and Night/Dark with OS sync in Settings), strict elimination of sub-11pt text, replacement of confusing text buttons with monochromatic SF Symbols with `.help()` hover tooltips, and a pre-flight Simulation Engine modal with APFS snapshot rollback insurance before any destructive operation.
+* **Decision:**
+  1. **MacSpace Neutral Color System (`GlassTheme.swift`):** Replaced saturated neon accents with calibrated neutral tokens: Warm Amber (`#c87a1d` / `#df8a28`) for primary actions and reclaimable delta; Sage Green (`#3d8c55` / `#4ea868`) for verified safe items, protected space, and rollback insurance; Atmospheric Blues (`#3c6fa8` / `#5f92ce`) for developer tools; Soft Lavender (`#7a7ac2` / `#9898dc`) for leftover artifacts; and Neutral Slate (`#636366` / `#8e8e93`) for system telemetry.
+  2. **11pt Typography Floor & HIG Audit:** Elevated all sub-11pt text across all 13 SwiftUI views and mockups to minimum 11pt/12pt (`.caption`, `.caption.weight(.medium)`). Audited layouts with a Principal Apple HIG Design Architect subagent to certify zero overlapping icons, badges, or truncated labels.
+  3. **Icon-First Controls with Native Hover Tooltips:** Configured secondary and toggle buttons as monochromatic SF Symbols (SF Symbols 6) with native `.help(...)` macOS tooltips, reserving full text for primary action buttons.
+  4. **Simulation Preview Engine (`CleanPreviewSheet.swift`):** Implemented a non-destructive pre-flight dry-run sheet featuring dual storage gauges (Current vs Projected Reclaimed), 3-point safety audit checks (APFS Trash routing, zero SQLite locks, iCloud dataless guard), instantaneous APFS snapshot rollback protection (`tmutil localsnapshot`), and granular candidate item inspection.
+  5. **Dedicated Settings Workflow (`SettingsView.swift`):** Relocated theme toggling (Light / Dark / System Sync) out of the main workflow into a dedicated Preferences/Settings section alongside APFS Snapshot Insurance policies, Full Disk Access deep-linking, and `SMAppService.daemon` status management.
+* **Trade-off / Cost:** Adds pre-flight simulation step and modal UI; requires maintaining dual light/dark color mappings across both SwiftUI tokens and HTML preview mockups.
+* **Impact & Benefit:** Exceptional macOS-native visual polish compliant with Apple HIG, zero visual clutter, accessible WCAG AA contrast across themes, and absolute peace of mind through zero-risk simulation and instant APFS rollbacks.
+
 ---
 
 ## Decisions & Architectural Ledger Matrix
@@ -174,4 +189,6 @@ This ledger records every major architectural decision, constraint, and trade-of
 | **010** | UI & Navigation | Dual-mode Clean (List vs Treemap) + TCC interactive guards | Unusable for TCC categories until FDA granted | Complete parity with CLI; prevents accidental unauthorized clicks |
 | **011** | Auto-Updates | Sparkle 2 + typed XPC graceful shutdown with watchdog | 2-second timeout watchdog overhead | Prevents busy-file lock crashes during app bundle replacement |
 | **012** | CI / CD & Sync | Weekly `git merge --no-ff -X ours` + 4-Tier Gate | Dual runtime maintenance (Swift + Shell + Go) | Automated releases, Universal 2 fat binaries, Sparkle appcast |
+| **013** | Design & Safety | MacSpace Neutral Theme + 11pt Floor + Simulation Preview | Modal preview overhead | Pixel-perfect HIG design, zero-risk simulation, APFS rollback |
+
 

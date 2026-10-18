@@ -66,24 +66,37 @@ public struct OptimizeView: View {
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Optimize")
-                .font(.title2)
-                .fontWeight(.bold)
-            Text("One-tap macOS performance maintenance routines")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Optimize")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("One-tap macOS performance maintenance routines")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                runAllTasks()
+            } label: {
+                Label("Run All Tasks", systemImage: "bolt.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(GlassTheme.warmAmber)
+            .help("Run all recommended system maintenance routines")
         }
     }
 
     private func taskCard(_ task: MaintenanceTask) -> some View {
         let isExecuting = executingTaskID == task.id
 
-        return AdaptiveGlassContainer(padding: 14) {
+        return AdaptiveGlassContainer(padding: 16) {
             HStack(spacing: 14) {
                 Image(systemName: task.icon)
                     .font(.system(size: 26))
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(GlassTheme.warmAmber)
                     .frame(width: 36)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -94,24 +107,30 @@ public struct OptimizeView: View {
 
                         if task.requiresAdmin {
                             Text("Root Daemon")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.caption)
+                                .fontWeight(.medium)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.18))
-                                .foregroundStyle(Color.blue)
+                                .background(GlassTheme.atmosphericBlue.opacity(0.16))
+                                .foregroundStyle(GlassTheme.atmosphericBlue)
                                 .clipShape(Capsule())
                         }
                     }
 
                     Text(task.subtitle)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let last = task.lastCompleted {
-                        Text("Completed \(last.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(GlassTheme.sageGreen)
+                            Text("Completed \(last.formatted(date: .omitted, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(GlassTheme.sageGreen)
+                        }
                     }
                 }
 
@@ -126,6 +145,7 @@ public struct OptimizeView: View {
                         executeTask(task.id)
                     }
                     .buttonStyle(.bordered)
+                    .help("Execute \(task.title)")
                 }
             }
         }
@@ -140,6 +160,15 @@ public struct OptimizeView: View {
                 tasks[index].lastCompleted = Date()
             }
             executingTaskID = nil
+        }
+    }
+
+    private func runAllTasks() {
+        Task {
+            for task in tasks {
+                executeTask(task.id)
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
         }
     }
 }

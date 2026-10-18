@@ -62,24 +62,24 @@ public struct StorageGaugeBar: View {
                     if usedWidth > 0 {
                         Rectangle()
                             .fill(LinearGradient(
-                                colors: [Color.blue.opacity(0.8), Color.blue],
+                                colors: [GlassTheme.atmosphericBlue.opacity(0.85), GlassTheme.atmosphericBlue],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ))
                             .frame(width: usedWidth)
-                            .help("Used: \(DiskSpaceInfo.format(bytes: nonReclaimableUsed))")
+                            .help("Used Space: \(DiskSpaceInfo.format(bytes: nonReclaimableUsed))")
                     }
 
                     // 2. Reclaimable Space (Mole Targets)
                     if reclaimableWidth > 0 {
                         Rectangle()
                             .fill(LinearGradient(
-                                colors: [Color.orange.opacity(0.85), Color.orange],
+                                colors: [GlassTheme.warmAmber.opacity(0.9), GlassTheme.warmAmber],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ))
                             .frame(width: reclaimableWidth)
-                            .help("Reclaimable: \(DiskSpaceInfo.format(bytes: effectiveReclaimable))")
+                            .help("Reclaimable Clutter: \(DiskSpaceInfo.format(bytes: effectiveReclaimable))")
                     }
 
                     // 3. Free Space
@@ -87,7 +87,7 @@ public struct StorageGaugeBar: View {
                         Rectangle()
                             .fill(Color.primary.opacity(0.08))
                             .frame(width: freeWidth)
-                            .help("Free: \(DiskSpaceInfo.format(bytes: diskSpace.freeBytes))")
+                            .help("Available Free Space: \(DiskSpaceInfo.format(bytes: diskSpace.freeBytes))")
                     }
                 }
                 .clipShape(Capsule())
@@ -96,26 +96,29 @@ public struct StorageGaugeBar: View {
             .frame(height: height)
             .animation(.easeInOut(duration: 0.35), value: diskSpace)
 
-            // Legend
+            // Legend (Strict 11pt minimum typography floor)
             HStack(spacing: 16) {
                 legendItem(
                     title: "Used",
-                    color: Color.blue,
+                    color: GlassTheme.atmosphericBlue,
                     bytes: nonReclaimableUsed
                 )
+                .help("Used by system and applications")
                 legendItem(
                     title: "Reclaimable",
-                    color: Color.orange,
+                    color: GlassTheme.warmAmber,
                     bytes: effectiveReclaimable
                 )
+                .help("Reclaimable caches, build artifacts, and logs")
                 legendItem(
                     title: "Free",
                     color: Color.secondary.opacity(0.5),
                     bytes: diskSpace.freeBytes
                 )
+                .help("Available unallocated storage")
                 Spacer()
                 Text("Total: \(DiskSpaceInfo.format(bytes: diskSpace.totalBytes))")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

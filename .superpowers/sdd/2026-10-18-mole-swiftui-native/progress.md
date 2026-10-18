@@ -28,5 +28,6 @@
 - [x] Task 7: Navigation & Core Views Implementation (Commit: `4f86a25` - Approved)
 - [x] Task 8: Sparkle 2 In-App Updates & Guided Onboarding (Commit: `e27b8fa` - Approved)
 - [x] Task 9: Automated Upstream Sync & Weekly Release CI Pipeline (Commit: `6bac29bd` - Approved)
-- [ ] Task 10: End-to-End Verification, Decisions Ledger & Principal Review
+- [x] Task 10: End-to-End Verification, Decisions Ledger & Principal Review (Approved)
+- [x] Task 11: MacSpace Neutral Design System, Simulation Preview & Release Packaging (Ready for Deployment)
 

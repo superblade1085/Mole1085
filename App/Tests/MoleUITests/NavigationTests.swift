@@ -8,13 +8,14 @@ final class NavigationTests: XCTestCase {
     
     func testNavigationWorkflowItems() {
         let items = NavigationWorkflow.allCases
-        XCTAssertEqual(items.count, 6)
+        XCTAssertEqual(items.count, 7)
         XCTAssertEqual(items[0], .clean)
         XCTAssertEqual(items[1], .analyze)
         XCTAssertEqual(items[2], .software)
         XCTAssertEqual(items[3], .optimize)
         XCTAssertEqual(items[4], .status)
         XCTAssertEqual(items[5], .history)
+        XCTAssertEqual(items[6], .settings)
     }
 
     func testWorkflowMetadata() {
@@ -35,6 +36,8 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(NavigationWorkflow.status.systemImage, "gauge.with.needle.fill")
         XCTAssertEqual(NavigationWorkflow.history.title, "History")
         XCTAssertEqual(NavigationWorkflow.history.systemImage, "clock.arrow.circlepath")
+        XCTAssertEqual(NavigationWorkflow.settings.title, "Settings")
+        XCTAssertEqual(NavigationWorkflow.settings.systemImage, "gearshape.fill")
     }
 
     @MainActor
@@ -47,6 +50,13 @@ final class NavigationTests: XCTestCase {
         
         let clean = CleanView(coordinator: coordinator)
         _ = clean.body
+        
+        var showPreview = true
+        let preview = CleanPreviewSheet(
+            coordinator: coordinator,
+            isPresented: Binding(get: { showPreview }, set: { showPreview = $0 })
+        )
+        _ = preview.body
         
         let treemap = AnalyzeTreemapView(coordinator: coordinator)
         _ = treemap.body
@@ -62,6 +72,9 @@ final class NavigationTests: XCTestCase {
 
         let history = HistoryView(coordinator: coordinator)
         _ = history.body
+
+        let settings = SettingsView(coordinator: coordinator)
+        _ = settings.body
 
         var showOnboarding = true
         let onboarding = OnboardingView(

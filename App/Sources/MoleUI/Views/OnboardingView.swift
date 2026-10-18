@@ -28,7 +28,7 @@ public struct OnboardingView: View {
                     icon: "sparkles",
                     title: "Zero-Prompt Clean Architecture",
                     subtitle: "Over 80% of clutter (Xcode, npm, CocoaPods, user caches) cleans safely without admin prompts or special permissions.",
-                    tint: .blue
+                    tint: GlassTheme.atmosphericBlue
                 )
 
                 featureCard(
@@ -37,7 +37,7 @@ public struct OnboardingView: View {
                     subtitle: coordinator.fullDiskAccessGranted
                         ? "Full Disk Access is active. System logs and protected caches can be inspected."
                         : "Optional permission for system logs & diagnostic reports. Never required for user caches.",
-                    tint: coordinator.fullDiskAccessGranted ? .green : .orange,
+                    tint: coordinator.fullDiskAccessGranted ? GlassTheme.sageGreen : GlassTheme.warmAmber,
                     actionTitle: coordinator.fullDiskAccessGranted ? "Authorized" : "Open System Settings",
                     actionDisabled: coordinator.fullDiskAccessGranted
                 ) {
@@ -50,7 +50,7 @@ public struct OnboardingView: View {
                     subtitle: isHelperRegistered
                         ? "Daemon is active and registered with SMAppService. Survives Sparkle 2 updates seamlessly."
                         : "Registers Apple's modern SMAppService helper once. Persists across Sparkle 2 app updates without repetitive password dialogs.",
-                    tint: isHelperRegistered ? .green : .purple,
+                    tint: isHelperRegistered ? GlassTheme.sageGreen : GlassTheme.warmAmber,
                     actionTitle: isHelperRegistered ? "Authorized" : "Authorize Daemon",
                     actionDisabled: isHelperRegistered
                 ) {
@@ -60,7 +60,7 @@ public struct OnboardingView: View {
 
             if let error = registrationError {
                 Text(error)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
@@ -72,10 +72,11 @@ public struct OnboardingView: View {
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(GlassTheme.warmAmber)
                 .controlSize(.large)
             }
         }
-        .padding(28)
+        .padding(24)
         .frame(width: 580)
         .onAppear {
             checkHelperStatus()
@@ -87,11 +88,12 @@ public struct OnboardingView: View {
             ZStack {
                 Circle()
                     .fill(LinearGradient(
-                        colors: [Color.blue, Color.purple],
+                        colors: [GlassTheme.warmAmber.opacity(0.85), GlassTheme.atmosphericBlue.opacity(0.85)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
                     .frame(width: 56, height: 56)
+                    .specularBorder(cornerRadius: 28, lineWidth: 0.5)
                 Image(systemName: "sparkles")
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.white)
@@ -116,7 +118,7 @@ public struct OnboardingView: View {
         actionDisabled: Bool = false,
         action: (() -> Void)? = nil
     ) -> some View {
-        AdaptiveGlassContainer(padding: 14) {
+        AdaptiveGlassContainer(padding: 16) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
@@ -128,7 +130,7 @@ public struct OnboardingView: View {
                         .font(.body)
                         .fontWeight(.semibold)
                     Text(subtitle)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

@@ -11,7 +11,7 @@ public enum CleanDisplayMode: String, CaseIterable, Identifiable {
 public struct CleanView: View {
     @Bindable public var coordinator: MoleCoordinator
     @State private var displayMode: CleanDisplayMode = .categories
-    @State private var showCleanConfirmation: Bool = false
+    @State private var showCleanPreviewSheet: Bool = false
 
     public init(coordinator: MoleCoordinator) {
         self.coordinator = coordinator
@@ -34,19 +34,8 @@ public struct CleanView: View {
             bottomActionBar
         }
         .padding(20)
-        .confirmationDialog(
-            "Safely move \(DiskSpaceInfo.format(bytes: coordinator.selectedReclaimableBytes)) to Trash?",
-            isPresented: $showCleanConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Move to Trash", role: .destructive) {
-                Task {
-                    try? await coordinator.performSafeCleanup(categories: coordinator.categories)
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Items will be moved to the macOS Trash via native Cocoa APFS trashing. You can restore them anytime from the Trash.")
+        .sheet(isPresented: $showCleanPreviewSheet) {
+            CleanPreviewSheet(coordinator: coordinator, isPresented: $showCleanPreviewSheet)
         }
     }
 
@@ -91,7 +80,7 @@ public struct CleanView: View {
                 ProgressView(value: coordinator.scanProgress, total: 1.0)
                     .progressViewStyle(.linear)
                 Text(coordinator.currentScanningPath)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -120,10 +109,6 @@ public struct CleanView: View {
             HStack {
                 Text(group.rawValue)
                     .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(categories.count) items · \(DiskSpaceInfo.format(bytes: categories.reduce(0) { $0 + $1.bytes }))")
-                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -162,7 +147,7 @@ public struct CleanView: View {
 
                     if let details = category.details {
                         Text(details)
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -175,7 +160,7 @@ public struct CleanView: View {
                         .fontWeight(.semibold)
                         .monospacedDigit()
                     Text("\(category.itemCount) files")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -183,32 +168,26 @@ public struct CleanView: View {
     }
 
     private func safetyBadge(_ level: SafetyLevel) -> some View {
-        let tint: Color
-        switch level {
-        case .guaranteedSafe:
-            tint = .green
-        case .rebuildable:
-            tint = .blue
-        case .deadLeftover:
-            tint = .purple
-        }
+        let tint = GlassTheme.safetyTint(for: level)
 
         return Text(level.rawValue)
-            .font(.system(size: 10, weight: .semibold))
-            .padding(.horizontal, 6)
+            .font(.caption)
+            .fontWeight(.medium)
+            .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(tint.opacity(0.18))
+            .background(tint.opacity(0.16))
             .foregroundStyle(tint)
             .clipShape(Capsule())
     }
 
     private var tccBadge: some View {
         Text("FDA Required")
-            .font(.system(size: 10, weight: .semibold))
-            .padding(.horizontal, 6)
+            .font(.caption)
+            .fontWeight(.medium)
+            .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(Color.orange.opacity(0.18))
-            .foregroundStyle(Color.orange)
+            .background(GlassTheme.warmAmber.opacity(0.16))
+            .foregroundStyle(GlassTheme.warmAmber)
             .clipShape(Capsule())
     }
 
@@ -217,7 +196,7 @@ public struct CleanView: View {
             VStack(spacing: 14) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 40))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(GlassTheme.warmAmber)
                 Text("Ready to Clean")
                     .font(.headline)
                 Text("Press 'Scan Space' below to discover caches, logs, and build artifacts that can be safely reclaimed.")
@@ -240,10 +219,10 @@ public struct CleanView: View {
                         Text(DiskSpaceInfo.format(bytes: coordinator.selectedReclaimableBytes))
                             .font(.headline)
                             .fontWeight(.bold)
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(GlassTheme.warmAmber)
                     }
                     Text("of \(DiskSpaceInfo.format(bytes: coordinator.totalReclaimableBytes)) total reclaimable")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -254,12 +233,22 @@ public struct CleanView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(Capsule())
+                .help("Select all categories for cleaning")
 
                 Button("Deselect All") {
                     coordinator.deselectAllCategories()
                 }
                 .buttonStyle(.plain)
                 .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(Capsule())
+                .help("Deselect all categories")
 
                 Button {
                     Task {
@@ -269,15 +258,17 @@ public struct CleanView: View {
                     Label("Scan Space", systemImage: "arrow.clockwise")
                 }
                 .disabled(coordinator.isScanning || coordinator.isCleaning)
+                .help("Scan disk for reclaimable clutter")
 
                 Button {
-                    showCleanConfirmation = true
+                    showCleanPreviewSheet = true
                 } label: {
-                    Label("Clean Selected", systemImage: "trash.fill")
+                    Label("Clean Selected", systemImage: "sparkles")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.orange)
+                .tint(GlassTheme.warmAmber)
                 .disabled(coordinator.selectedReclaimableBytes == 0 || coordinator.isCleaning || coordinator.isScanning)
+                .help("Open Simulation Engine preview sheet before trashing")
             }
         }
     }

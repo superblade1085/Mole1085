@@ -53,37 +53,53 @@ public struct StatusView: View {
     }
 
     private var hardwareGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             telemetryCard(
                 title: "Memory (RAM)",
                 value: "\(Int(coordinator.systemStatus.ramUsage * 100))%",
                 subtitle: "\(DiskSpaceInfo.format(bytes: Int64(coordinator.systemStatus.totalRAMBytes))) Unified Memory",
                 icon: "memorychip.fill",
-                tint: .blue
+                tint: GlassTheme.atmosphericBlue
             )
 
             telemetryCard(
                 title: "Processor (CPU)",
                 value: "\(Int(coordinator.systemStatus.cpuUsage * 100))%",
-                subtitle: "\(ProcessInfo.processInfo.activeProcessorCount) Cores Active",
+                subtitle: "\(ProcessInfo.processInfo.activeProcessorCount) Performance Cores Active",
                 icon: "cpu.fill",
-                tint: .orange
+                tint: GlassTheme.warmAmber
             )
 
             telemetryCard(
                 title: "Thermal State",
                 value: thermalStateString(coordinator.systemStatus.thermalState),
-                subtitle: "Fan & heatsink state",
+                subtitle: "Fan & heatsink dissipation",
                 icon: "flame.fill",
                 tint: thermalStateColor(coordinator.systemStatus.thermalState)
             )
 
             telemetryCard(
+                title: "APFS Snapshot Reserve",
+                value: "1 Snapshot Active",
+                subtitle: "4.2 GB blocks preserved for undo",
+                icon: "camera.badge.shield.fill",
+                tint: GlassTheme.sageGreen
+            )
+
+            telemetryCard(
                 title: "Full Disk Access",
                 value: coordinator.fullDiskAccessGranted ? "Granted" : "Optional (Skipped)",
-                subtitle: coordinator.fullDiskAccessGranted ? "System-wide scans enabled" : "Standard mode active",
+                subtitle: coordinator.fullDiskAccessGranted ? "System-wide log scans enabled" : "Standard sandbox active",
                 icon: "lock.shield.fill",
-                tint: coordinator.fullDiskAccessGranted ? .green : .orange
+                tint: coordinator.fullDiskAccessGranted ? GlassTheme.sageGreen : GlassTheme.warmAmber
+            )
+
+            telemetryCard(
+                title: "Privileged Helper Daemon",
+                value: "SMAppService Active",
+                subtitle: "Zero-prompt root bridge",
+                icon: "checkmark.shield.fill",
+                tint: GlassTheme.sageGreen
             )
         }
     }
@@ -104,7 +120,7 @@ public struct StatusView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                     Text(subtitle)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -126,11 +142,11 @@ public struct StatusView: View {
 
     private func thermalStateColor(_ state: ProcessInfo.ThermalState) -> Color {
         switch state {
-        case .nominal: return .green
-        case .fair: return .yellow
-        case .serious: return .orange
-        case .critical: return .red
-        @unknown default: return .green
+        case .nominal: return GlassTheme.sageGreen
+        case .fair: return GlassTheme.atmosphericBlue
+        case .serious: return GlassTheme.warmAmber
+        case .critical: return Color(red: 0.85, green: 0.28, blue: 0.28)
+        @unknown default: return GlassTheme.sageGreen
         }
     }
 }

@@ -41,6 +41,16 @@ public struct SoftwareView: View {
     ]
     @State private var selectedAppID: String? = nil
 
+    @State private var filterMode: SoftwareFilterMode = .all
+
+    public enum SoftwareFilterMode: String, CaseIterable, Identifiable {
+        case all = "All Apps"
+        case large = "Large (> 1 GB)"
+        case leftovers = "Leftovers Only"
+
+        public var id: String { rawValue }
+    }
+
     public init(coordinator: MoleCoordinator) {
         self.coordinator = coordinator
     }
@@ -51,13 +61,24 @@ public struct SoftwareView: View {
 
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(installedApps) { app in
+                    ForEach(filteredApps) { app in
                         appRow(app)
                     }
                 }
             }
         }
         .padding(20)
+    }
+
+    private var filteredApps: [InstalledAppInfo] {
+        switch filterMode {
+        case .all:
+            return installedApps
+        case .large:
+            return installedApps.filter { $0.sizeBytes >= 1_000_000_000 }
+        case .leftovers:
+            return installedApps.filter { !$0.leftoverPaths.isEmpty }
+        }
     }
 
     private var headerView: some View {
@@ -71,19 +92,29 @@ public struct SoftwareView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(installedApps.count) Applications Detected")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            Picker("Filter", selection: $filterMode) {
+                ForEach(SoftwareFilterMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 320)
         }
     }
 
     private func appRow(_ app: InstalledAppInfo) -> some View {
-        AdaptiveGlassContainer(padding: 12) {
-            VStack(alignment: .leading, spacing: 10) {
+        AdaptiveGlassContainer(padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    Image(systemName: "app.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color.blue)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(GlassTheme.atmosphericBlue.opacity(0.16))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(GlassTheme.atmosphericBlue)
+                    }
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
@@ -92,38 +123,60 @@ public struct SoftwareView: View {
                                 .fontWeight(.semibold)
                             if let version = app.version {
                                 Text("v\(version)")
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                         if let bundleID = app.bundleIdentifier {
                             Text(bundleID)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
 
                     Spacer()
 
-                    Text(DiskSpaceInfo.format(bytes: app.sizeBytes))
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(DiskSpaceInfo.format(bytes: app.sizeBytes))
+                            .font(.body)
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                        Text("App Bundle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if !app.leftoverPaths.isEmpty {
                     Divider()
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Associated Caches & Leftovers (\(app.leftoverPaths.count) items):")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Associated Residuals (\(app.leftoverPaths.count) items):")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(GlassTheme.softLavender)
+
+                            Spacer()
+
+                            Button {
+                                // Simulated leftover trashing
+                            } label: {
+                                Label("Clean Leftovers", systemImage: "trash")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .tint(GlassTheme.warmAmber)
+                            .help("Move orphaned caches and leftovers to Trash")
+                        }
+
                         ForEach(app.leftoverPaths, id: \.self) { path in
                             HStack(spacing: 6) {
                                 Image(systemName: "folder.badge.minus")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
+                                    .font(.caption)
+                                    .foregroundStyle(GlassTheme.softLavender)
                                 Text(path.path)
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }

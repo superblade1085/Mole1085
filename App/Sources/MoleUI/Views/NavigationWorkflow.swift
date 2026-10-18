@@ -7,6 +7,7 @@ public enum NavigationWorkflow: String, CaseIterable, Identifiable, Sendable {
     case optimize
     case status
     case history
+    case settings
 
     public var id: String { rawValue }
 
@@ -18,6 +19,7 @@ public enum NavigationWorkflow: String, CaseIterable, Identifiable, Sendable {
         case .optimize: return "Optimize"
         case .status: return "Status"
         case .history: return "History"
+        case .settings: return "Settings"
         }
     }
 
@@ -29,6 +31,7 @@ public enum NavigationWorkflow: String, CaseIterable, Identifiable, Sendable {
         case .optimize: return "bolt.fill"
         case .status: return "gauge.with.needle.fill"
         case .history: return "clock.arrow.circlepath"
+        case .settings: return "gearshape.fill"
         }
     }
 }

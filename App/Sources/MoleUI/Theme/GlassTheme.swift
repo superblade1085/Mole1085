@@ -11,16 +11,35 @@ public enum GlassTheme {
     public static let highContrastBorderColor = Color.primary.opacity(0.40)
     public static let glassBackgroundColor = Color(nsColor: .windowBackgroundColor).opacity(0.55)
 
+    // MARK: - MacSpace-Inspired Neutral Apple Palette
+    public static let warmAmber = Color(red: 0.78, green: 0.48, blue: 0.11)       // #c87a1d (Reclaimable, Primary Action)
+    public static let warmAmberDark = Color(red: 0.87, green: 0.54, blue: 0.16)   // #df8a28 (Night Glow)
+    public static let sageGreen = Color(red: 0.24, green: 0.55, blue: 0.33)       // #3d8c55 / #4ea868 (Safe, Verified)
+    public static let atmosphericBlue = Color(red: 0.24, green: 0.44, blue: 0.66) // #3c6fa8 / #5f92ce (System / Used)
+    public static let softLavender = Color(red: 0.48, green: 0.48, blue: 0.76)    // #7a7ac2 / #9898dc (App Leftovers)
+    public static let neutralSlate = Color(red: 0.39, green: 0.39, blue: 0.40)    // #636366 / #8e8e93 (Logs, Diagnostics)
+
     public static func color(for group: CleanCategoryGroup) -> Color {
         switch group {
         case .developer:
-            return Color(red: 0.20, green: 0.60, blue: 1.0) // Vibrance Blue
+            return atmosphericBlue
         case .systemCaches:
-            return Color(red: 1.0, green: 0.62, blue: 0.20) // Amber Orange
+            return warmAmber
         case .appLeftovers:
-            return Color(red: 0.70, green: 0.40, blue: 0.95) // Neon Purple
+            return softLavender
         case .logs:
-            return Color(red: 1.0, green: 0.35, blue: 0.45) // Coral Rose
+            return neutralSlate
+        }
+    }
+
+    public static func safetyTint(for level: SafetyLevel) -> Color {
+        switch level {
+        case .guaranteedSafe:
+            return sageGreen
+        case .rebuildable:
+            return atmosphericBlue
+        case .deadLeftover:
+            return softLavender
         }
     }
 
@@ -33,3 +52,4 @@ public enum GlassTheme {
         )
     }
 }
+
