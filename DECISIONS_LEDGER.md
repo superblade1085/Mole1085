@@ -138,7 +138,20 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Adds timeout watchdog and XPC connection teardown overhead during updates.
 * **Impact & Benefit:** Seamless Sparkle 2 updates without busy file lock crashes, zero recurring onboarding sheets, and clear visibility into persistent helper daemon status.
 
+---
 
-
-
-
+### Decision 012: Automated Upstream Synchronization, Shared Ancestry DAG & 4-Tier Verification Gate
+* **Date:** 2026-10-18
+* **Context:** User mandate to keep the repository in continuous weekly synchronization with upstream `tw93/Mole`, execute comprehensive multi-runtime test suites before release, build fat Universal 2 binaries, and publish Sparkle 2 appcast feed items.
+* **Decision:**
+  1. **Direct Repository Tracking & Shared Git DAG:** Merged upstream `tw93/Mole` history into `main` using an `ort` merge strategy with `-X ours`, establishing direct common ancestry (`8fab478f`). Pristine upstream CLI files (`bin/`, `cmd/`, `lib/`, `scripts/`, `tests/`, `go.mod`, `go.sum`, `mo`, `mole`) are tracked directly at repository root while native Swift code remains cleanly isolated in `App/` and adapters in `adapters/`.
+  2. **Automated Weekly Merge CI (`.github/workflows/upstream-sync.yml`):** Runs on a weekly cron (`0 0 * * 1`) with concurrency protection (`cancel-in-progress: false`). Executes `git merge --no-ff -X ours upstream/main`, preserving native UI/Swift enhancements while automatically ingesting upstream cleaning recipes and bugfixes. On conflict, automatically aborts and logs an actionable GitHub Issue alert.
+  3. **4-Tier Verification Gate (`scripts/preflight_check.sh`):**
+     - Tier 1: Upstream CLI style & lint checks, syntax validation, and `audit_destructive_sinks.py` compliance.
+     - Tier 2: Bats contract and upstream unit tests with `MOLE_TEST_NO_AUTH=1`.
+     - Tier 3: Go engine modules (`go test ./...`).
+     - Tier 4: Native macOS Swift/SwiftUI unit and integration test suite (`swift test --disable-sandbox`).
+     - Enforces privacy isolation using an ephemeral mock sandbox home (`PREFLIGHT_HOME="$(mktemp -d /tmp/mole-mock-home-XXXXXX)"`) with `# SAFE:` cleanup exit traps. Supports `--quick`, `--swift-only`, and `--cli-only`.
+  4. **Universal 2 Binary & Sparkle 2 Appcast Synthesis:** Automated build compiles fat dual-architecture binaries (`arm64` + `x86_64`), computes SHA256 checksums, and synthesizes `dist/appcast_item.xml` published alongside the zip archive with `--clobber` tag protection.
+* **Trade-off / Cost:** Repository tracks both upstream CLI components and native SwiftUI application; local preflight requires mock `$HOME` provisioning to satisfy upstream destructive sink audits.
+* **Impact & Benefit:** Guaranteed zero-breakage weekly syncs, bulletproof CI/CD release pipeline, complete test coverage across shell, Go, and Swift runtimes, and seamless Sparkle 2 client distribution.

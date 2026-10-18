@@ -27,6 +27,6 @@
 - [x] Task 6: Liquid Glass Design System Components (MoleUI) (Commit: `6a7afa0` - Approved)
 - [x] Task 7: Navigation & Core Views Implementation (Commit: `4f86a25` - Approved)
 - [x] Task 8: Sparkle 2 In-App Updates & Guided Onboarding (Commit: `e27b8fa` - Approved)
-- [ ] Task 9: Automated Upstream Sync & Weekly Release CI Pipeline
+- [x] Task 9: Automated Upstream Sync & Weekly Release CI Pipeline (Commit: `6bac29bd` - Approved)
 - [ ] Task 10: End-to-End Verification, Decisions Ledger & Principal Review
 
