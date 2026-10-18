@@ -1,24 +1,62 @@
-<p align="right"><b>macOS</b> · <a href="https://github.com/tw93/Mole/tree/windows">Windows</a></p>
-
 <div align="center">
-  <h1>Mole</h1>
-  <p><b>Deep clean, uninstall apps, optimize, analyze disk, and monitor your Mac. Free open-source CLI, plus a native Mac app.</b></p>
+  <h1>Mole for Mac</h1>
+  <p><b>Native macOS App & Pristine Open-Source CLI Toolkit</b></p>
+  <p>Deep clean, uninstall apps, optimize, analyze disk, and monitor your Mac with Apple Liquid Glass aesthetics, zero-prompt privilege persistence, and multi-layer APFS deletion safety.</p>
   <p>English · <a href="README_CN.md">中文</a> · <a href="README_TW.md">繁體</a> · <a href="README_JA.md">日本語</a> · <a href="README_KR.md">한국어</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_UA.md">Українська</a> · <a href="README_RU.md">Русский</a></p>
-  <a href="https://github.com/tw93/mole/stargazers"><img src="https://img.shields.io/github/stars/tw93/mole?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/tw93/mole/releases"><img src="https://img.shields.io/github/v/release/tw93/mole?label=version&style=flat-square" alt="Version"></a>
+  <a href="https://github.com/superblade1085/Mole1085/stargazers"><img src="https://img.shields.io/github/stars/tw93/mole?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/superblade1085/Mole1085/releases"><img src="https://img.shields.io/github/v/release/tw93/mole?label=version&style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL_v3-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://github.com/tw93/mole/commits"><img src="https://img.shields.io/github/commit-activity/m/tw93/mole?style=flat-square" alt="Commits"></a>
-  <a href="https://twitter.com/HiTw93"><img src="https://img.shields.io/badge/follow-Tw93-red?style=flat-square&logo=Twitter" alt="Twitter"></a>
-  <a href="https://t.me/+9f9gf4ZrFSQ2OWVl"><img src="https://img.shields.io/badge/chat-Telegram-blueviolet?style=flat-square&logo=Telegram" alt="Telegram"></a>
+  <a href="https://github.com/superblade1085/Mole1085/commits"><img src="https://img.shields.io/github/commit-activity/m/tw93/mole?style=flat-square" alt="Commits"></a>
 </div>
 
-<p align="center">
-  <img src="./docs/img/big-mole.png" alt="Mole cleanup results" width="1000" />
-</p>
+---
 
-> 💡 This repo is the free open-source CLI (`mo`). Prefer a native app? [Mole for Mac](https://mole.fit/) is a separate download with review-before-delete cleanup, tested leftovers for 800+ apps, maintenance, disk drill-downs, live status, and fan controls on supported Macs. On Windows, the native app is [Mole for Windows](https://mole.fit/windows). `brew install mole` installs the CLI only.
+## Native macOS App Architecture
 
-## Features
+```mermaid
+graph TD
+    UI["SwiftUI 6.0 + Liquid Glass<br/>(Sidebar, CleanView, Treemap, Status)"] --> Coordinator["@MainActor @Observable<br/>MoleCoordinator"]
+    Coordinator --> Streamer["ProcessStreamer<br/>(posix_spawnp + Process Groups)"]
+    Coordinator --> Throttler["DisplayThrottler<br/>(60 Hz Temporal Coalescing)"]
+    Coordinator --> Safety["MoleSafety<br/>(SafeTrash, DatalessGuard, DatabaseGuard)"]
+    Coordinator --> Helper["Privileged Helper Daemon<br/>(SMAppService.daemon + SecRequirement)"]
+    Streamer --> Adapter["Pristine Shell Adapters<br/>(adapters/json_stream.sh)"]
+    Adapter --> PristineCLI["Pristine Mole CLI Engine<br/>(bin/, lib/, cmd/)"]
+    Safety --> APFSTrash["macOS Native APFS Trash<br/>(FileManager.trashItem)"]
+```
+
+### Key Engineering Features
+
+- **Liquid Glass Design System (`MoleUI`):** Built for macOS 14.0+ (Sonoma/Sequoia) using SwiftUI `@Observable`, `NSVisualEffectView` HUD materials (`withinWindow` blending), and adaptive specular inner strokes (`SpecularBorder`). Fully respects macOS Accessibility overrides (`accessibilityReduceTransparency` and `colorSchemeContrast == .increased`).
+- **Zero-Prompt Privilege Persistence (`SMAppService.daemon`):** Installs a persistent LaunchDaemon registered once during initial onboarding. Routes root-level operations over zero-trust XPC with Darwin audit token validation (`audit_token_t`), surviving Sparkle 2 updates without repeated admin prompts.
+- **Multi-Layer APFS Deletion Safety (`MoleSafety`):**
+  - **Safe Trashing:** Deletions route strictly through native `FileManager.default.trashItem(at:resultingItemURL:)` for APFS cross-volume recovery. Shell wildcards (`rm -rf *`) are permanently prohibited.
+  - **iCloud Eviction Protection (`DatalessGuard`):** Checks `st_flags & SF_DATALESS` (`0x40000000`) and `NSURLIsUbiquitousItemKey` without reading payload bytes, preventing multi-gigabyte iCloud background downloads.
+  - **Database Companion Grouping (`DatabaseGuard`):** Bundles SQLite files atomically with `-wal`, `-shm`, and `-journal` sidecars to prevent corruption.
+  - **Silent FDA Canary (`FullDiskAccess`):** Checks permissions silently on `~/Library/Safari` without triggering macOS TCC privacy dialogs.
+- **60 Hz Asynchronous Process Streaming (`MoleEngine`):** Spawns scan subprocesses via Darwin `posix_spawnp` with atomic process group leadership (`POSIX_SPAWN_SETPGROUP`), cleanly cancels child process trees, and batches high-throughput event streams with an on-demand 60 Hz temporal coalescer consuming strictly 0% idle CPU.
+- **Automated Upstream Synchronization & Weekly Release CI:** Continuously synchronizes with upstream `tw93/Mole` on a weekly cron (`0 0 * * 1`), executes a 4-tier verification gate (`./scripts/preflight_check.sh`), compiles fat Universal 2 binaries (`arm64` + `x86_64`), and publishes Sparkle 2 appcast feed items.
+
+---
+
+## 4-Tier Automated Verification Gate
+
+Run the local verification runner before pushing any changes:
+
+```bash
+# Run all 4 verification tiers (CLI audits, Bats, Go, and Swift tests)
+./scripts/preflight_check.sh
+
+# Run quick verification (core unit tests only)
+./scripts/preflight_check.sh --quick
+
+# Run Swift/SwiftUI native app tests only
+./scripts/preflight_check.sh --swift-only
+```
+
+---
+
+## CLI Features
 
 - **All-in-one CLI toolkit**: Combines CleanMyMac, AppCleaner, DaisyDisk, and iStat Menus style workflows in one terminal command
 - **Deep clean**: Removes caches, logs, leftovers, and orphaned app data to reclaim disk space

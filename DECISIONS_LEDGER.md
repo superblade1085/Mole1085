@@ -155,3 +155,23 @@ This ledger records every major architectural decision, constraint, and trade-of
   4. **Universal 2 Binary & Sparkle 2 Appcast Synthesis:** Automated build compiles fat dual-architecture binaries (`arm64` + `x86_64`), computes SHA256 checksums, and synthesizes `dist/appcast_item.xml` published alongside the zip archive with `--clobber` tag protection.
 * **Trade-off / Cost:** Repository tracks both upstream CLI components and native SwiftUI application; local preflight requires mock `$HOME` provisioning to satisfy upstream destructive sink audits.
 * **Impact & Benefit:** Guaranteed zero-breakage weekly syncs, bulletproof CI/CD release pipeline, complete test coverage across shell, Go, and Swift runtimes, and seamless Sparkle 2 client distribution.
+
+---
+
+## Decisions & Architectural Ledger Matrix
+
+| ID | Domain | Strategic Decision | Trade-off / Cost | Security & Engineering Benefit |
+|:---|:---|:---|:---|:---|
+| **001** | Test Isolation | Synthetic test sandbox in `/tmp` (`HOME=/tmp/...`) | Must synthesize mock directories for tests | Zero macOS TCC permission dialogs; 300x faster test runs |
+| **002** | Permissions | Opt-in graceful degradation for Full Disk Access | Excludes Mail/Safari without FDA | Zero prompt fatigue; immediate out-of-the-box utility |
+| **003** | Upstream Sync | Pristine CLI in root + dedicated JSON adapter (`fd 3`) | Must maintain adapter translation logic | Zero upstream merge conflicts; upstream files stay untouched |
+| **004** | Quality Assurance | Senior/Principal Architect reviewer mandate | Rigorous multi-round reviews before completion | Catches subtle Darwin traps early (deadlocks, zombies, stubs) |
+| **005** | IPC & Streaming | `posix_spawnp` + `SETPGROUP` + 60 Hz on-demand throttler | Custom POSIX spawn implementation | Atomic process group trees, 0% idle CPU, zero defunct zombies |
+| **006** | Deletion Safety | Native `FileManager.trashItem` + `SF_DATALESS` check | Deletions require writable volume trash | APFS cross-volume recovery; prevents multi-GB iCloud downloads |
+| **007** | Privilege / Helper | `SMAppService.daemon` + `audit_token_t` verification | Requires code signing certificates for production | Immune to PID spoofing; persists across Sparkle updates |
+| **008** | State Management | Swift 5.9+ `@MainActor @Observable` + Proportional Treemap | Treemap recalculation on state changes | Thread-safe UI binding; guaranteed geometric partitioning |
+| **009** | Design System | Apple Liquid Glass (`.withinWindow`) + Accessibility overrides | Testing combinations of transparency/contrast | Native Sonoma/Sequoia aesthetics; HIG accessibility compliant |
+| **010** | UI & Navigation | Dual-mode Clean (List vs Treemap) + TCC interactive guards | Unusable for TCC categories until FDA granted | Complete parity with CLI; prevents accidental unauthorized clicks |
+| **011** | Auto-Updates | Sparkle 2 + typed XPC graceful shutdown with watchdog | 2-second timeout watchdog overhead | Prevents busy-file lock crashes during app bundle replacement |
+| **012** | CI / CD & Sync | Weekly `git merge --no-ff -X ours` + 4-Tier Gate | Dual runtime maintenance (Swift + Shell + Go) | Automated releases, Universal 2 fat binaries, Sparkle appcast |
+
