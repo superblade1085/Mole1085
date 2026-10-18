@@ -55,8 +55,8 @@ jobs:
         id: merge_step
         if: steps.upstream_diff.outputs.behind_count > 0
         run: |
-          echo "Merging upstream/main with --no-ff..."
-          if git merge --no-ff upstream/main -m "chore(sync): automated weekly upstream sync with tw93/Mole [$(date +'%Y-%m-%d')]"; then
+          echo "Merging upstream/main with --no-ff -X ours..."
+          if git merge --no-ff -X ours upstream/main -m "chore(sync): automated weekly upstream sync with tw93/Mole [$(date +'%Y-%m-%d')]"; then
             echo "merge_success=true" >> "$GITHUB_OUTPUT"
           else
             echo "Merge conflict detected! Aborting merge..."
@@ -111,6 +111,23 @@ jobs:
           
           SHA256_HASH=$(shasum -a 256 "dist/${ARCHIVE_NAME}" | awk '{print $1}')
           FILE_SIZE=$(stat -f%z "dist/${ARCHIVE_NAME}")
+
+          cat << APPCAST_EOF > dist/appcast_item.xml
+          <item>
+            <title>Mole for Mac ${RELEASE_TAG}</title>
+            <pubDate>$(date -R)</pubDate>
+            <sparkle:version>${RELEASE_TAG#v}</sparkle:version>
+            <sparkle:shortVersionString>${RELEASE_TAG#v}</sparkle:shortVersionString>
+            <description><![CDATA[
+              Weekly synchronized release with upstream tw93/Mole.
+              All 4 preflight tiers passed.
+            ]]></description>
+            <enclosure url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ARCHIVE_NAME}"
+                       length="${FILE_SIZE}"
+                       type="application/octet-stream"
+                       sparkle:edSignature="REPLACE_WITH_ED25519_SIGNATURE" />
+          </item>
+          APPCAST_EOF
           
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
@@ -143,12 +160,19 @@ jobs:
 
           ### Artifact Information
           - File: \`${{ steps.package_release.outputs.archive_name }}\`
+          - Size: \`${{ steps.package_release.outputs.file_size }} bytes\`
           - SHA256: \`${{ steps.package_release.outputs.sha256 }}\`
           - Architecture: Universal 2 (\`arm64\` + \`x86_64\`)
           - Target OS: macOS 14.0+ (Sonoma, Sequoia)
+
+          ### Sparkle 2 Appcast Enclosure Item
+          \`\`\`xml
+          $(cat dist/appcast_item.xml)
+          \`\`\`
           RELEASE_NOTES
 
-          gh release create "$TAG" "$ARCHIVE" \
+          gh release create "$TAG" "$ARCHIVE" dist/appcast_item.xml \
+            --clobber \
             --title "Mole for Mac $TAG" \
             --notes-file release_notes.md
 

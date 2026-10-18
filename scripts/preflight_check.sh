@@ -114,12 +114,20 @@ echo ""
 START_TIME=$(date +%s)
 FAILED_TIERS=0
 
-# Ensure isolated build and cache directories to avoid polluting host and prevent privacy prompts
+# Ensure isolated build, home sandbox, and cache directories to avoid polluting host and prevent privacy prompts
 export TMPDIR="/tmp"
 export CLANG_MODULE_CACHE_PATH="/tmp/clang-cache"
 export MOLE_TEST_NO_AUTH=1
 export MOLE_DRY_RUN=1
 mkdir -p "$CLANG_MODULE_CACHE_PATH"
+
+PREFLIGHT_HOME="$(mktemp -d "${TMPDIR:-/tmp}/mole-mock-home-XXXXXX")"
+mkdir -p "$PREFLIGHT_HOME/Library/Caches"
+cleanup_preflight() {
+    rm -rf "$PREFLIGHT_HOME" # SAFE: exact mktemp-created mock sandbox home directory
+}
+trap cleanup_preflight EXIT
+export HOME="$PREFLIGHT_HOME"
 
 run_tier_1_cli_check() {
     echo -e "${BOLD}${BLUE}--- Tier 1: Upstream CLI Code Quality Checks ---${RESET}"
@@ -151,20 +159,24 @@ run_tier_2_bats_tests() {
         fi
     fi
 
-    # 2. Upstream CLI Bats tests if full bats-core is available
+    # 2. Upstream CLI Bats tests if full bats-core is available and not in quick mode
     if [[ -d "$CLI_ROOT/tests" && -f "$CLI_ROOT/scripts/test.sh" ]]; then
-        local bats_ver=""
-        bats_ver="$(bats --version 2>&1 || true)"
-        if command -v bats-exec-file > /dev/null 2>&1 || [[ "$bats_ver" =~ Bats\ [0-9]+\.[0-9]+ && ! "$bats_ver" =~ minimal-fallback ]]; then
-            echo "Running Upstream CLI Bats Test Runner..."
-            if (cd "$CLI_ROOT" && MOLE_TEST_NO_AUTH=1 ./scripts/test.sh); then
-                echo -e "${GREEN}✔ Upstream CLI test runner passed.${RESET}"
-            else
-                echo -e "${RED}✘ Upstream CLI test runner failed.${RESET}"
-                tier_failed=1
-            fi
+        if $QUICK_MODE; then
+            echo -e "${YELLOW}⚡ Quick mode enabled: skipping extended upstream CLI bats suites.${RESET}"
         else
-            echo -e "${YELLOW}⚠ bats-core not installed on host (installed in CI via Homebrew); upstream CLI bats suite skipped locally.${RESET}"
+            local bats_ver=""
+            bats_ver="$(bats --version 2>&1 || true)"
+            if command -v bats-exec-file > /dev/null 2>&1 || [[ "$bats_ver" =~ Bats\ [0-9]+\.[0-9]+ && ! "$bats_ver" =~ minimal-fallback ]]; then
+                echo "Running Upstream CLI Bats Test Runner..."
+                if (cd "$CLI_ROOT" && MOLE_TEST_NO_AUTH=1 ./scripts/test.sh); then
+                    echo -e "${GREEN}✔ Upstream CLI test runner passed.${RESET}"
+                else
+                    echo -e "${RED}✘ Upstream CLI test runner failed.${RESET}"
+                    tier_failed=1
+                fi
+            else
+                echo -e "${YELLOW}⚠ bats-core not installed on host (installed in CI via Homebrew); upstream CLI bats suite skipped locally.${RESET}"
+            fi
         fi
     fi
 
@@ -198,8 +210,13 @@ run_tier_3_go_tests() {
 run_tier_4_swift_tests() {
     echo -e "${BOLD}${BLUE}--- Tier 4: Native macOS Swift / SwiftUI Test Suite ---${RESET}"
     if [[ -d "$REPO_ROOT/App" ]]; then
-        echo "Running: swift test --disable-sandbox --package-path App"
-        if swift test --disable-sandbox --package-path "$REPO_ROOT/App"; then
+        local swift_cmd=("swift" "test" "--disable-sandbox" "--package-path" "$REPO_ROOT/App")
+        if $QUICK_MODE; then
+            echo -e "${YELLOW}⚡ Quick mode enabled: running core smoke tests.${RESET}"
+            swift_cmd+=("--filter" "MoleCoreTests")
+        fi
+        echo "Running: ${swift_cmd[*]}"
+        if "${swift_cmd[@]}"; then
             echo -e "${GREEN}✔ Tier 4 Swift test suite passed.${RESET}\n"
         else
             echo -e "${RED}✘ Tier 4 Swift test suite failed.${RESET}\n"

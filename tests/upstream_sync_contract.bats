@@ -32,3 +32,24 @@ setup() {
     run grep -E "git merge --no-ff" "$REPO_ROOT/.github/workflows/upstream-sync.yml"
     [ "$status" -eq 0 ]
 }
+
+@test "preflight_check script establishes mock HOME sandbox" {
+    run grep -E "PREFLIGHT_HOME=" "$REPO_ROOT/scripts/preflight_check.sh"
+    [ "$status" -eq 0 ]
+    run grep -E "export HOME=.*PREFLIGHT_HOME" "$REPO_ROOT/scripts/preflight_check.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "preflight_check supports --quick flag" {
+    run "$REPO_ROOT/scripts/preflight_check.sh" --quick --swift-only
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Quick mode enabled" ]]
+}
+
+@test "upstream-sync workflow generates Sparkle appcast item enclosure XML" {
+    run grep -E "appcast_item\.xml" "$REPO_ROOT/.github/workflows/upstream-sync.yml"
+    [ "$status" -eq 0 ]
+    run grep -E "<sparkle:version>" "$REPO_ROOT/.github/workflows/upstream-sync.yml"
+    [ "$status" -eq 0 ]
+}
+
