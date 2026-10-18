@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Mole for Mac Changelog</title>
+    <link>https://github.com/superblade1085/Mole1085</link>
+    <description>Most recent updates for Mole for Mac.</description>
+    <language>en</language>
+    <!-- Public Ed25519 Key for Sparkle 2 verification: BOJd/2gtWBcIb4tYJsvD6qLnQgPnlmgChaCwV0y0FWE= -->
+  </channel>
+</rss>

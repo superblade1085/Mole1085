@@ -112,6 +112,14 @@ jobs:
           SHA256_HASH=$(shasum -a 256 "dist/${ARCHIVE_NAME}" | awk '{print $1}')
           FILE_SIZE=$(stat -f%z "dist/${ARCHIVE_NAME}")
 
+          ED_SIG="PENDING_PRODUCTION_KEY"
+          if [[ -n "${{ secrets.SPARKLE_ED_KEY }}" ]]; then
+            echo "Signing release archive with Sparkle Ed25519 key..."
+            chmod +x scripts/sparkle_tool.swift
+            ED_SIG=$(./scripts/sparkle_tool.swift sign "dist/${ARCHIVE_NAME}" "${{ secrets.SPARKLE_ED_KEY }}")
+            echo "Generated Ed25519 signature."
+          fi
+
           cat << APPCAST_EOF > dist/appcast_item.xml
           <item>
             <title>Mole for Mac ${RELEASE_TAG}</title>
@@ -125,7 +133,7 @@ jobs:
             <enclosure url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${ARCHIVE_NAME}"
                        length="${FILE_SIZE}"
                        type="application/octet-stream"
-                       sparkle:edSignature="REPLACE_WITH_ED25519_SIGNATURE" />
+                       sparkle:edSignature="${ED_SIG}" />
           </item>
           APPCAST_EOF
           
@@ -133,6 +141,7 @@ jobs:
           echo "archive_name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA256_HASH" >> "$GITHUB_OUTPUT"
           echo "file_size=$FILE_SIZE" >> "$GITHUB_OUTPUT"
+          echo "ed_sig=$ED_SIG" >> "$GITHUB_OUTPUT"
 
       - name: Push Synchronized Merge to Main
         if: steps.upstream_diff.outputs.behind_count > 0

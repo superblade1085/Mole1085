@@ -9,6 +9,13 @@ final class UpdateManagerTests: XCTestCase {
         let manager = UpdateManager(feedURL: feedURL)
         XCTAssertEqual(manager.feedURL, feedURL)
         XCTAssertEqual(manager.state, .idle)
+        XCTAssertEqual(manager.publicEdKey, UpdateManager.defaultPublicEdKey)
+    }
+
+    func testDefaultPublicEdKey() {
+        let manager = UpdateManager()
+        XCTAssertEqual(manager.publicEdKey, UpdateManager.defaultPublicEdKey)
+        XCTAssertFalse(manager.publicEdKey.isEmpty)
     }
 
     func testUpdateWillInstallTriggersHelperGracefulShutdown() async {

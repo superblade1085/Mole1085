@@ -9,16 +9,21 @@ public enum UpdateState: Sendable, Equatable {
 }
 
 public final class UpdateManager: @unchecked Sendable {
+    public static let defaultPublicEdKey = "BOJd/2gtWBcIb4tYJsvD6qLnQgPnlmgChaCwV0y0FWE="
+    
     public let feedURL: URL
+    public let publicEdKey: String
     public private(set) var state: UpdateState = .idle
 
     private let helperShutdownHandler: () async -> Bool
 
     public init(
-        feedURL: URL = URL(string: "https://mole.fit/appcast.xml")!,
+        feedURL: URL = URL(string: "https://raw.githubusercontent.com/superblade1085/Mole1085/main/dist/appcast.xml")!,
+        publicEdKey: String = UpdateManager.defaultPublicEdKey,
         helperShutdownHandler: @escaping () async -> Bool = { await UpdateManager.defaultHelperShutdown() }
     ) {
         self.feedURL = feedURL
+        self.publicEdKey = publicEdKey
         self.helperShutdownHandler = helperShutdownHandler
     }
 
