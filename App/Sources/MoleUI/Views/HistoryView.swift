@@ -1,50 +1,10 @@
+import AppKit
 import SwiftUI
 import MoleEngine
 
-public struct AuditLogEntry: Identifiable {
-    public var id: String
-    public var timestamp: Date
-    public var operation: String
-    public var targetCategory: String
-    public var bytesReclaimed: Int64
-    public var status: String
-    public var canUndo: Bool = true
-    public var isUndone: Bool = false
-}
-
 public struct HistoryView: View {
     @Bindable public var coordinator: MoleCoordinator
-
-    @State private var logEntries: [AuditLogEntry] = [
-        AuditLogEntry(
-            id: UUID().uuidString,
-            timestamp: Date().addingTimeInterval(-3600 * 2),
-            operation: "Safe Cleanup",
-            targetCategory: "Xcode DerivedData & Archives",
-            bytesReclaimed: 14_500_000_000,
-            status: "Success (Moved to Trash)",
-            canUndo: true
-        ),
-        AuditLogEntry(
-            id: UUID().uuidString,
-            timestamp: Date().addingTimeInterval(-86400 * 1),
-            operation: "Safe Cleanup",
-            targetCategory: "Node & npm Caches",
-            bytesReclaimed: 2_800_000_000,
-            status: "Success (Moved to Trash)",
-            canUndo: true
-        ),
-        AuditLogEntry(
-            id: UUID().uuidString,
-            timestamp: Date().addingTimeInterval(-86400 * 3),
-            operation: "System Scan",
-            targetCategory: "All Categories",
-            bytesReclaimed: 0,
-            status: "Scan Completed",
-            canUndo: false
-        )
-    ]
-    @State private var snapshotPruneMessage: String? = nil
+    @State private var isLoading: Bool = false
 
     public init(coordinator: MoleCoordinator) {
         self.coordinator = coordinator
@@ -54,15 +14,29 @@ public struct HistoryView: View {
         VStack(alignment: .leading, spacing: 16) {
             headerView
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(logEntries) { entry in
-                        logCard(entry)
+            if isLoading {
+                ProgressView("Loading audit history from ~/.mole/...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if coordinator.historySessions.isEmpty && coordinator.historyDeletions.isEmpty {
+                emptyStateView
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(coordinator.historySessions) { session in
+                            sessionCard(session)
+                        }
+
+                        if !coordinator.historyDeletions.isEmpty {
+                            deletionsSection
+                        }
                     }
                 }
             }
         }
         .padding(20)
+        .task {
+            await reloadHistory()
+        }
     }
 
     private var headerView: some View {
@@ -71,7 +45,7 @@ public struct HistoryView: View {
                 Text("Operations Audit Log & Undo")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("JSON session manifests and one-click rollback")
+                Text("Real JSON session logs from ~/.mole/history.log")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -79,89 +53,133 @@ public struct HistoryView: View {
             Spacer()
 
             Button {
-                pruneOldSnapshots()
+                openTrashInFinder()
             } label: {
-                Label("Prune Snapshots (>24h)", systemImage: "clock.badge.xmark")
+                Label("Open Trash", systemImage: "trash")
                     .font(.caption)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .help("Prune Mole APFS snapshots older than 24 hours to reclaim space")
+            .help("Open macOS Trash to inspect and restore moved files")
+
+            Button {
+                Task { await reloadHistory() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Refresh audit logs from disk")
         }
     }
 
-    private func logCard(_ entry: AuditLogEntry) -> some View {
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("No Cleanup History Yet")
+                .font(.headline)
+            Text("Operations recorded in ~/.mole/operations.log will appear here automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func sessionCard(_ session: HistorySession) -> some View {
         AdaptiveGlassContainer(padding: 14) {
             HStack(spacing: 12) {
-                Image(systemName: entry.isUndone ? "arrow.uturn.backward.circle.fill" : "checkmark.seal.fill")
+                Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(entry.isUndone ? GlassTheme.warmAmber : GlassTheme.sageGreen)
+                    .foregroundStyle(GlassTheme.sageGreen)
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(entry.operation)
+                        Text(session.command?.capitalized ?? "Operation")
                             .font(.body)
                             .fontWeight(.semibold)
-                        Text("•")
-                            .foregroundStyle(.secondary)
-                        Text(entry.targetCategory)
+                        if let cat = session.category {
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text(cat)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let timestamp = session.timestamp {
+                        Text(timestamp)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
-                    Text(entry.timestamp.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                if entry.bytesReclaimed > 0 {
+                if let bytes = session.bytesReclaimed, bytes > 0 {
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text(DiskSpaceInfo.format(bytes: entry.bytesReclaimed))
+                        Text(DiskSpaceInfo.format(bytes: bytes))
                             .font(.body)
                             .fontWeight(.semibold)
                             .monospacedDigit()
                             .foregroundStyle(GlassTheme.sageGreen)
 
-                        if entry.canUndo && !entry.isUndone {
-                            Button {
-                                undoOperation(entry.id)
-                            } label: {
-                                Label("Undo Cleanup", systemImage: "arrow.uturn.backward")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .tint(GlassTheme.warmAmber)
-                            .help("Restore moved items from Trash back to original locations")
-                        } else if entry.isUndone {
-                            Text("Restored")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(GlassTheme.warmAmber)
-                        } else {
-                            Text("Reclaimed")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("Reclaimed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text(entry.status)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    private func undoOperation(_ id: String) {
-        if let index = logEntries.firstIndex(where: { $0.id == id }) {
-            logEntries[index].isUndone = true
+    private var deletionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recent Item Deletions")
+                .font(.headline)
+                .padding(.top, 8)
+
+            ForEach(coordinator.historyDeletions.prefix(20)) { deletion in
+                AdaptiveGlassContainer(padding: 10) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(deletion.path)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if let time = deletion.timestamp {
+                                Text(time)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if let size = deletion.size {
+                            Text(size)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(GlassTheme.warmAmber)
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private func pruneOldSnapshots() {
-        snapshotPruneMessage = "Pruned 0 stale snapshots (>24h)."
+    private func openTrashInFinder() {
+        if let trashURL = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first {
+            NSWorkspace.shared.open(trashURL)
+        }
+    }
+
+    private func reloadHistory() async {
+        isLoading = true
+        defer { isLoading = false }
+        try? await coordinator.fetchHistory(limit: 50)
     }
 }

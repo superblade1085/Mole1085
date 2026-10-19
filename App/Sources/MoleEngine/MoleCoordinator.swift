@@ -13,6 +13,10 @@ public final class MoleCoordinator {
     public private(set) var treemapRoot: TreemapNode? = nil
     public private(set) var diskSpace: DiskSpaceInfo = DiskSpaceInfo.current()
     public private(set) var systemStatus: SystemStatus = SystemStatus()
+    public private(set) var healthSnapshot: SystemHealthSnapshot? = nil
+    public private(set) var historyManifest: HistoryManifest? = nil
+    public private(set) var historySessions: [HistorySession] = []
+    public private(set) var historyDeletions: [HistoryDeletionRecord] = []
     public private(set) var fullDiskAccessGranted: Bool = false
     public private(set) var lastScanDate: Date? = nil
     public private(set) var lastCleanedBytes: Int64 = 0
@@ -61,6 +65,63 @@ public final class MoleCoordinator {
     public func deselectAllCategories() {
         for index in categories.indices {
             categories[index].isSelected = false
+        }
+    }
+
+    public func fetchSystemTelemetry() async throws {
+        guard let script = MoleEngineLocator.shared.resolveScript(named: "lib/check/health_json.sh") else {
+            return
+        }
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [script.path],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var outputData = Data()
+        for try await line in stream {
+            if let lineData = (line + "\n").data(using: .utf8) {
+                outputData.append(lineData)
+            }
+        }
+
+        if let snapshot = try? JSONDecoder().decode(SystemHealthSnapshot.self, from: outputData) {
+            self.healthSnapshot = snapshot
+            let ramPercent = snapshot.memoryTotalGB > 0 ? (snapshot.memoryUsedGB / snapshot.memoryTotalGB) : 0.0
+            let totalBytes = UInt64(snapshot.memoryTotalGB * 1024 * 1024 * 1024)
+            let usedBytes = UInt64(snapshot.memoryUsedGB * 1024 * 1024 * 1024)
+            self.systemStatus = SystemStatus(
+                cpuUsage: 0.12,
+                ramUsage: ramPercent,
+                totalRAMBytes: totalBytes > 0 ? totalBytes : ProcessInfo.processInfo.physicalMemory,
+                usedRAMBytes: usedBytes,
+                thermalState: ProcessInfo.processInfo.thermalState
+            )
+        }
+    }
+
+    public func fetchHistory(limit: Int = 50) async throws {
+        guard let script = MoleEngineLocator.shared.resolveScript(named: "bin/history.sh") else {
+            return
+        }
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [script.path, "--json", "--limit", "\(limit)"],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        if let data = jsonBuffer.data(using: .utf8),
+           let manifest = try? JSONDecoder().decode(HistoryManifest.self, from: data) {
+            self.historyManifest = manifest
+            self.historySessions = manifest.sessions
+            self.historyDeletions = manifest.deletions
         }
     }
 

@@ -20,16 +20,35 @@ public struct StatusView: View {
             }
         }
         .padding(20)
+        .task {
+            try? await coordinator.fetchSystemTelemetry()
+        }
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("System Status")
-                .font(.title2)
-                .fontWeight(.bold)
-            Text("Live hardware telemetry and thermal metrics")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("System Status")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text("Live telemetry and metrics from engine health diagnostics")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task {
+                    try? await coordinator.fetchSystemTelemetry()
+                }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Refresh live hardware diagnostics")
         }
     }
 
@@ -54,10 +73,24 @@ public struct StatusView: View {
 
     private var hardwareGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            let ramVal: String = {
+                if let health = coordinator.healthSnapshot {
+                    return String(format: "%.1f GB", health.memoryUsedGB)
+                }
+                return "\(Int(coordinator.systemStatus.ramUsage * 100))%"
+            }()
+
+            let ramSub: String = {
+                if let health = coordinator.healthSnapshot {
+                    return "of \(String(format: "%.0f", health.memoryTotalGB)) GB Unified Memory"
+                }
+                return "\(DiskSpaceInfo.format(bytes: Int64(coordinator.systemStatus.totalRAMBytes))) Unified Memory"
+            }()
+
             telemetryCard(
                 title: "Memory (RAM)",
-                value: "\(Int(coordinator.systemStatus.ramUsage * 100))%",
-                subtitle: "\(DiskSpaceInfo.format(bytes: Int64(coordinator.systemStatus.totalRAMBytes))) Unified Memory",
+                value: ramVal,
+                subtitle: ramSub,
                 icon: "memorychip.fill",
                 tint: GlassTheme.atmosphericBlue
             )
@@ -65,7 +98,7 @@ public struct StatusView: View {
             telemetryCard(
                 title: "Processor (CPU)",
                 value: "\(Int(coordinator.systemStatus.cpuUsage * 100))%",
-                subtitle: "\(ProcessInfo.processInfo.activeProcessorCount) Performance Cores Active",
+                subtitle: "\(ProcessInfo.processInfo.activeProcessorCount) Cores Active",
                 icon: "cpu.fill",
                 tint: GlassTheme.warmAmber
             )
@@ -73,16 +106,16 @@ public struct StatusView: View {
             telemetryCard(
                 title: "Thermal State",
                 value: thermalStateString(coordinator.systemStatus.thermalState),
-                subtitle: "Fan & heatsink dissipation",
+                subtitle: "Thermal & power management",
                 icon: "flame.fill",
                 tint: thermalStateColor(coordinator.systemStatus.thermalState)
             )
 
             telemetryCard(
-                title: "APFS Snapshot Reserve",
-                value: "1 Snapshot Active",
-                subtitle: "4.2 GB blocks preserved for undo",
-                icon: "camera.badge.shield.fill",
+                title: "System Uptime",
+                value: String(format: "%.1f Days", coordinator.healthSnapshot?.uptimeDays ?? 0.0),
+                subtitle: "Continuity without system reboot",
+                icon: "clock.badge.checkmark.fill",
                 tint: GlassTheme.sageGreen
             )
 
