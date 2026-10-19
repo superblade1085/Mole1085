@@ -94,7 +94,8 @@ echo "✔ Code signature verified."
 
 # 6. Create distribution zip archive
 echo "==> Creating distribution zip archive..."
-ZIP_NAME="Mole-for-Mac-1.62.0.zip"
+VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^V//' || echo "1.62.1")"
+ZIP_NAME="Mole-for-Mac-${VERSION}.zip"
 (cd "$DIST_DIR" && rm -f "$ZIP_NAME" && zip -q -r -y "$ZIP_NAME" "$APP_NAME.app")
 
 echo "✔ Application package complete: $BUNDLE_DIR"
