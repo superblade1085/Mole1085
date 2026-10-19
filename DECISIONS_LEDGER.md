@@ -189,6 +189,17 @@ This ledger records every major architectural decision, constraint, and trade-of
 * **Trade-off / Cost:** Swift views depend on asynchronous adapter subprocess execution rather than in-process Swift operations; requires maintaining structured JSON contracts in `adapters/`.
 * **Impact & Benefit:** Guaranteed 100% behavioral parity with upstream Mole CLI, zero divergence in safety or cleanup heuristics, seamless upstream synchronization, and authentic system execution across all workflows.
 
+### Decision 015: Zero-Tolerance Mock Eradication, Darwin Kernel Metrics & Reversible Trashing
+* **Date:** 2026-10-19
+* **Context:** A thorough review by a Principal Systems Architect rejected early remediation code due to leftover test backdoors (`isMock: Bool = false`, `trashingHandler`), fabricated CPU telemetry, raw `/bin/rm -rf` overriding SafeTrash in adapters, and silent error swallowing with `try?` in SwiftUI views.
+* **Decision:**
+  1. **Strict Production vs Test Isolation:** Completely eliminated `isMock` from `MoleCoordinator.init()` and all production domain models. Removed the test `trashingHandler` backdoor from `performSafeCleanup`. Production code is 100% free of test stubs or mock modes.
+  2. **Authentic Darwin Kernel Telemetry (`DarwinMetrics.swift`):** Replaced hardcoded CPU percentages with live Mach host statistics sampled from the Darwin kernel via `mach_host_self()` and `HOST_CPU_LOAD_INFO` without synthetic delays. Bound `StatusView` to live `SMAppService.daemon.status` and `CleanPreviewSheet` to dynamic `DatabaseGuard` companion locks and `DatalessGuard` cloud stubs.
+  3. **Reversible Finder Trashing (`trash_or_safe_remove`):** Upgraded `clean_stream.sh` and `uninstall_adapter.sh` with `trash_or_safe_remove()`, routing deletions through AppleScript Finder trashing (`tell application "Finder" delete p end tell`) with fallback to `$HOME/.Trash` and upstream `safe_remove`, fulfilling the user-facing `"SafeTrash: 100% Reversible"` contract. Excluded SQLite WAL/SHM companion sidecars from scan candidate emissions.
+  4. **Active UI Error Surfacing:** Replaced all `try?` silent error swallows in SwiftUI views with `do / catch` blocks forwarding errors to `coordinator.reportError(...)`. Added a persistent glass error banner in `SidebarView` with an interactive dismissal button.
+* **Trade-off / Cost:** Tests must exercise real execution paths without relying on parameter injections in production constructors.
+* **Impact & Benefit:** Uncompromising engineering integrity, authentic live telemetry, 100% reversible file deletions to macOS Trash, and transparent error visibility for users.
+
 ---
 
 ## Decisions & Architectural Ledger Matrix
@@ -209,6 +220,8 @@ This ledger records every major architectural decision, constraint, and trade-of
 | **012** | CI / CD & Sync | Weekly `git merge --no-ff -X ours` + 4-Tier Gate | Dual runtime maintenance (Swift + Shell + Go) | Automated releases, Universal 2 fat binaries, Sparkle appcast |
 | **013** | Design & Safety | MacSpace Neutral Theme + 11pt Floor + Simulation Preview | Modal preview overhead | Pixel-perfect HIG design, zero-risk simulation, APFS rollback |
 | **014** | Architecture | CLI Application Logic Sovereignty & Presentation-Only UI | Adapter maintenance across upstream releases | 100% upstream engine fidelity, zero fake data/delays, pristine upstream sync |
+| **015** | Safety & Integrity | Zero Mock Backdoors, Darwin Kernel Metrics & Finder Trashing | Tests exercise real system paths | Zero synthetic data, authentic telemetry, 100% reversible trashing |
+
 
 
 
