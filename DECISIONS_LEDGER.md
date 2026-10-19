@@ -173,6 +173,24 @@ This ledger records every major architectural decision, constraint, and trade-of
 
 ---
 
+### Decision 014: CLI Application Logic Sovereignty & Presentation-Only SwiftUI Architecture
+* **Date:** 2026-10-19
+* **Context:** An architectural audit revealed that early UI iterations had duplicated scanning, uninstallation, optimization, and deletion routines in native Swift or used simulated delays (`Task.sleep`) and synthetic stubs, violating the foundational charter that all application logic, intelligence, heuristics, and deletion routines must strictly originate from the upstream `mole` CLI engine.
+* **Decision:**
+  1. **Strict Sovereignty Boundary:** Established that the native macOS Swift/SwiftUI application serves exclusively as an orchestration and presentation layer (subprocess lifecycle, async streaming, display throttling, observation state, and Apple Liquid Glass UI). Under no circumstances are cleaning heuristics, path resolutions, safety filters, or uninstallation scans reimplemented natively in Swift.
+  2. **Dynamic Engine Locating & App Bundling (`MoleEngineLocator.swift`):** Resolved scripts, binaries, and adapters dynamically across development repo roots (`bin/`, `lib/`, `adapters/`) and production app bundle directories (`Contents/Resources/mole-engine/`), packaged automatically via `scripts/package_app.sh`.
+  3. **High-Performance Machine-Readable Adapters (`adapters/`):**
+     - `clean_stream.sh`: Emits line-delimited JSON (`ndjson`) streaming real category scans and clean operations directly from upstream `lib/clean/*.sh`.
+     - `analyze_stream.sh`: Invokes the high-performance compiled Go analyzer (`bin/analyze-go` or `cmd/analyze`) with Darwin `du` fallback, producing strict JSON treemap payloads.
+     - `uninstall_adapter.sh`: Wraps upstream `bin/uninstall.sh` and `find_app_files` for application discovery, leftover identification, and uninstallation.
+     - `optimize_adapter.sh`: Discovers all 19 catalog maintenance routines from `lib/optimize/catalog.sh` and executes real system optimizations via `execute_optimization`.
+  4. **Zero-Tolerance Eradication of Mocks & Simulated Delays:** Purged all hardcoded data stubs, fake collections, `Task.sleep` calls, and `isMock` flags from production source files (`MoleCoordinator`, `CleanView`, `SoftwareView`, `OptimizeView`, `HistoryView`, `StatusView`).
+  5. **Continuous Sovereignty Verification Gate:** Codified `tests/swift_cli_sovereignty.bats` and Swift contract integration suites verifying schema compliance, NDJSON streaming, and zero-sleep invariants on every commit and CI run.
+* **Trade-off / Cost:** Swift views depend on asynchronous adapter subprocess execution rather than in-process Swift operations; requires maintaining structured JSON contracts in `adapters/`.
+* **Impact & Benefit:** Guaranteed 100% behavioral parity with upstream Mole CLI, zero divergence in safety or cleanup heuristics, seamless upstream synchronization, and authentic system execution across all workflows.
+
+---
+
 ## Decisions & Architectural Ledger Matrix
 
 | ID | Domain | Strategic Decision | Trade-off / Cost | Security & Engineering Benefit |
@@ -190,5 +208,7 @@ This ledger records every major architectural decision, constraint, and trade-of
 | **011** | Auto-Updates | Sparkle 2 + typed XPC graceful shutdown with watchdog | 2-second timeout watchdog overhead | Prevents busy-file lock crashes during app bundle replacement |
 | **012** | CI / CD & Sync | Weekly `git merge --no-ff -X ours` + 4-Tier Gate | Dual runtime maintenance (Swift + Shell + Go) | Automated releases, Universal 2 fat binaries, Sparkle appcast |
 | **013** | Design & Safety | MacSpace Neutral Theme + 11pt Floor + Simulation Preview | Modal preview overhead | Pixel-perfect HIG design, zero-risk simulation, APFS rollback |
+| **014** | Architecture | CLI Application Logic Sovereignty & Presentation-Only UI | Adapter maintenance across upstream releases | 100% upstream engine fidelity, zero fake data/delays, pristine upstream sync |
+
 
 

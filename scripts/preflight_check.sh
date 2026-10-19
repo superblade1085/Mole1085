@@ -159,6 +159,16 @@ run_tier_2_bats_tests() {
         fi
     fi
 
+    if [[ -f "$REPO_ROOT/tests/swift_cli_sovereignty.bats" ]]; then
+        echo "Running CLI Sovereignty Bats Contract Tests..."
+        if bats "$REPO_ROOT/tests/swift_cli_sovereignty.bats"; then
+            echo -e "${GREEN}✔ CLI sovereignty Bats contract tests passed.${RESET}"
+        else
+            echo -e "${RED}✘ CLI sovereignty Bats contract tests failed.${RESET}"
+            tier_failed=1
+        fi
+    fi
+
     # 2. Upstream CLI Bats tests if full bats-core is available and not in quick mode
     if [[ -d "$CLI_ROOT/tests" && -f "$CLI_ROOT/scripts/test.sh" ]]; then
         if $QUICK_MODE; then
