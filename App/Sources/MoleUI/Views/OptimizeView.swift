@@ -1,50 +1,8 @@
 import SwiftUI
 import MoleEngine
 
-public struct MaintenanceTask: Identifiable {
-    public var id: String
-    public var title: String
-    public var subtitle: String
-    public var icon: String
-    public var requiresAdmin: Bool
-    public var isRunning: Bool = false
-    public var lastCompleted: Date? = nil
-}
-
 public struct OptimizeView: View {
     @Bindable public var coordinator: MoleCoordinator
-
-    @State private var tasks: [MaintenanceTask] = [
-        MaintenanceTask(
-            id: "ram",
-            title: "Purge Inactive Memory",
-            subtitle: "Releases inactive pages and compresses unneeded dirty memory blocks via /usr/sbin/purge",
-            icon: "memorychip.fill",
-            requiresAdmin: true
-        ),
-        MaintenanceTask(
-            id: "dns",
-            title: "Flush DNS Cache",
-            subtitle: "Clears local mDNSResponder resolver caches to fix stale domain routing",
-            icon: "network",
-            requiresAdmin: false
-        ),
-        MaintenanceTask(
-            id: "spotlight",
-            title: "Rebuild Spotlight Index",
-            subtitle: "Forces Metadata server to re-index system volumes for fast search",
-            icon: "magnifyingglass",
-            requiresAdmin: true
-        ),
-        MaintenanceTask(
-            id: "launchservices",
-            title: "Rebuild LaunchServices Database",
-            subtitle: "Fixes duplicate 'Open With' application entries and broken file associations",
-            icon: "arrow.triangle.2.circlepath",
-            requiresAdmin: false
-        )
-    ]
-    @State private var executingTaskID: String? = nil
 
     public init(coordinator: MoleCoordinator) {
         self.coordinator = coordinator
@@ -54,15 +12,51 @@ public struct OptimizeView: View {
         VStack(alignment: .leading, spacing: 16) {
             headerView
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(tasks) { task in
-                        taskCard(task)
+            if coordinator.isLoadingOptimizeTasks && coordinator.optimizeTasks.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.regular)
+                    Text("Loading optimization routines from Mole engine...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if coordinator.optimizeTasks.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.secondary)
+                    Text("No optimization routines discovered.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    Button("Reload Tasks") {
+                        Task {
+                            try? await coordinator.fetchOptimizeTasks()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(coordinator.optimizeTasks) { task in
+                            taskCard(task)
+                        }
                     }
                 }
             }
         }
         .padding(20)
+        .task {
+            if coordinator.optimizeTasks.isEmpty {
+                try? await coordinator.fetchOptimizeTasks()
+            }
+        }
     }
 
     private var headerView: some View {
@@ -71,7 +65,7 @@ public struct OptimizeView: View {
                 Text("Optimize")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("One-tap macOS performance maintenance routines")
+                Text("Upstream Mole macOS performance and maintenance routines")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -79,34 +73,36 @@ public struct OptimizeView: View {
             Spacer()
 
             Button {
-                runAllTasks()
+                runAllSafeTasks()
             } label: {
-                Label("Run All Tasks", systemImage: "bolt.fill")
+                Label("Run Safe Tasks", systemImage: "bolt.fill")
             }
             .buttonStyle(.borderedProminent)
             .tint(GlassTheme.warmAmber)
-            .help("Run all recommended system maintenance routines")
+            .disabled(coordinator.executingOptimizeTaskID != nil || coordinator.optimizeTasks.isEmpty)
+            .help("Run all verified safe optimization routines without root escalation")
         }
     }
 
-    private func taskCard(_ task: MaintenanceTask) -> some View {
-        let isExecuting = executingTaskID == task.id
+    private func taskCard(_ task: OptimizeTaskItem) -> some View {
+        let isExecuting = coordinator.executingOptimizeTaskID == task.id
+        let result = coordinator.optimizeTaskResults[task.id]
 
         return AdaptiveGlassContainer(padding: 16) {
             HStack(spacing: 14) {
-                Image(systemName: task.icon)
+                Image(systemName: task.systemIcon)
                     .font(.system(size: 26))
                     .foregroundStyle(GlassTheme.warmAmber)
                     .frame(width: 36)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(task.title)
+                        Text(task.name)
                             .font(.body)
                             .fontWeight(.semibold)
 
-                        if task.requiresAdmin {
-                            Text("Root Daemon")
+                        if task.requiresSudo {
+                            Text("Root Required")
                                 .font(.caption)
                                 .fontWeight(.medium)
                                 .padding(.horizontal, 6)
@@ -114,22 +110,40 @@ public struct OptimizeView: View {
                                 .background(GlassTheme.atmosphericBlue.opacity(0.16))
                                 .foregroundStyle(GlassTheme.atmosphericBlue)
                                 .clipShape(Capsule())
+                        } else if task.safe {
+                            Text("Safe")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(GlassTheme.sageGreen.opacity(0.16))
+                                .foregroundStyle(GlassTheme.sageGreen)
+                                .clipShape(Capsule())
                         }
                     }
 
-                    Text(task.subtitle)
+                    Text(task.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let last = task.lastCompleted {
+                    if let res = result {
                         HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(GlassTheme.sageGreen)
-                            Text("Completed \(last.formatted(date: .omitted, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(GlassTheme.sageGreen)
+                            if res.exitCode == 0 {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(GlassTheme.sageGreen)
+                                Text("Completed successfully")
+                                    .font(.caption)
+                                    .foregroundStyle(GlassTheme.sageGreen)
+                            } else {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(GlassTheme.warmAmber)
+                                Text("Exited with code \(res.exitCode)")
+                                    .font(.caption)
+                                    .foregroundStyle(GlassTheme.warmAmber)
+                            }
                         }
                     }
                 }
@@ -145,29 +159,24 @@ public struct OptimizeView: View {
                         executeTask(task.id)
                     }
                     .buttonStyle(.bordered)
-                    .help("Execute \(task.title)")
+                    .disabled(coordinator.executingOptimizeTaskID != nil)
+                    .help("Execute \(task.name)")
                 }
             }
         }
     }
 
     private func executeTask(_ id: String) {
-        executingTaskID = id
         Task {
-            // Simulated task execution
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            if let index = tasks.firstIndex(where: { $0.id == id }) {
-                tasks[index].lastCompleted = Date()
-            }
-            executingTaskID = nil
+            _ = try? await coordinator.executeOptimizeTask(id: id)
         }
     }
 
-    private func runAllTasks() {
+    private func runAllSafeTasks() {
         Task {
-            for task in tasks {
-                executeTask(task.id)
-                try? await Task.sleep(nanoseconds: 300_000_000)
+            let safeTasks = coordinator.optimizeTasks.filter { !$0.requiresSudo && $0.safe }
+            for task in safeTasks {
+                _ = try? await coordinator.executeOptimizeTask(id: task.id)
             }
         }
     }

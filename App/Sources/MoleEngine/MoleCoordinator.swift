@@ -27,8 +27,10 @@ public final class MoleCoordinator {
     public private(set) var installedApps: [InstalledApp] = []
     public private(set) var isLoadingApps: Bool = false
     public private(set) var appLeftovers: [String: [AppLeftoverItem]] = [:]
-
-    private let isMock: Bool
+    public private(set) var optimizeTasks: [OptimizeTaskItem] = []
+    public private(set) var isLoadingOptimizeTasks: Bool = false
+    public private(set) var executingOptimizeTaskID: String? = nil
+    public private(set) var optimizeTaskResults: [String: OptimizeExecutionResult] = [:]
 
     public var totalReclaimableBytes: Int64 {
         categories.reduce(0) { $0 + $1.bytes }
@@ -39,7 +41,6 @@ public final class MoleCoordinator {
     }
 
     public init(isMock: Bool = false) {
-        self.isMock = isMock
         self.fullDiskAccessGranted = FullDiskAccess.isGranted()
     }
 
@@ -243,6 +244,67 @@ public final class MoleCoordinator {
         return reclaimed
     }
 
+    public func fetchOptimizeTasks() async throws {
+        guard !isLoadingOptimizeTasks else { return }
+        isLoadingOptimizeTasks = true
+        defer { isLoadingOptimizeTasks = false }
+
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "optimize_adapter.sh") else {
+            throw ProcessStreamerError.processLaunchFailed("optimize_adapter.sh not found")
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--list"],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        if let data = jsonBuffer.data(using: .utf8),
+           let tasks = try? JSONDecoder().decode([OptimizeTaskItem].self, from: data) {
+            self.optimizeTasks = tasks
+        }
+    }
+
+    public func executeOptimizeTask(id: String) async throws -> OptimizeExecutionResult {
+        guard executingOptimizeTaskID == nil else {
+            throw ProcessStreamerError.processLaunchFailed("Another optimization task is already executing")
+        }
+        executingOptimizeTaskID = id
+        defer { executingOptimizeTaskID = nil }
+
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "optimize_adapter.sh") else {
+            throw ProcessStreamerError.processLaunchFailed("optimize_adapter.sh not found")
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--run", id],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        guard let data = jsonBuffer.data(using: .utf8),
+              let result = try? JSONDecoder().decode(OptimizeExecutionResult.self, from: data) else {
+            let fallbackResult = OptimizeExecutionResult(status: "error", action: id, exitCode: 1, output: jsonBuffer)
+            self.optimizeTaskResults[id] = fallbackResult
+            return fallbackResult
+        }
+
+        self.optimizeTaskResults[id] = result
+        return result
+    }
+
     public func scanReclaimableSpace() async throws {
         guard !isScanning else { return }
         isScanning = true
@@ -275,7 +337,7 @@ public final class MoleCoordinator {
             var directCleaned: Int64 = 0
             for cat in selected {
                 for p in cat.paths {
-                    try? SafeTrash.trashItem(at: p, trashingHandler: customHandler)
+                    _ = try? SafeTrash.trashItem(at: p, trashingHandler: customHandler)
                     directCleaned += 100
                 }
             }
