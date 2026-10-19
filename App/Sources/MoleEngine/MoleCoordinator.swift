@@ -24,6 +24,9 @@ public final class MoleCoordinator {
     public private(set) var diskAnalyzerRoot: TreemapNode? = nil
     public private(set) var isAnalyzingDisk: Bool = false
     public private(set) var diskAnalysisOutput: AnalyzeOutput? = nil
+    public private(set) var installedApps: [InstalledApp] = []
+    public private(set) var isLoadingApps: Bool = false
+    public private(set) var appLeftovers: [String: [AppLeftoverItem]] = [:]
 
     private let isMock: Bool
 
@@ -156,6 +159,88 @@ public final class MoleCoordinator {
             self.diskAnalysisOutput = output
             self.diskAnalyzerRoot = output.toTreemapNode()
         }
+    }
+
+    public func fetchInstalledApps() async throws {
+        guard !isLoadingApps else { return }
+        isLoadingApps = true
+        defer { isLoadingApps = false }
+
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "uninstall_adapter.sh") else {
+            throw ProcessStreamerError.processLaunchFailed("uninstall_adapter.sh not found")
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--list"],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        if let data = jsonBuffer.data(using: .utf8),
+           let apps = try? JSONDecoder().decode([InstalledApp].self, from: data) {
+            self.installedApps = apps.sorted { $0.sizeBytes > $1.sizeBytes }
+        }
+    }
+
+    public func fetchAppLeftovers(app: InstalledApp) async throws -> [AppLeftoverItem] {
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "uninstall_adapter.sh") else {
+            return []
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--leftovers", app.bundleID, app.name, app.path],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        if let data = jsonBuffer.data(using: .utf8),
+           let items = try? JSONDecoder().decode([AppLeftoverItem].self, from: data) {
+            self.appLeftovers[app.id] = items
+            return items
+        }
+        return []
+    }
+
+    public func uninstallApp(app: InstalledApp) async throws -> Int64 {
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "uninstall_adapter.sh") else {
+            throw ProcessStreamerError.processLaunchFailed("uninstall_adapter.sh not found")
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--uninstall", app.path],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        var reclaimed: Int64 = app.sizeBytes
+        if let data = jsonBuffer.data(using: .utf8),
+           let result = try? JSONDecoder().decode(UninstallResult.self, from: data),
+           let bytes = result.reclaimedBytes {
+            reclaimed = bytes
+        }
+
+        self.installedApps.removeAll { $0.id == app.id }
+        self.appLeftovers.removeValue(forKey: app.id)
+        refreshDiskSpace()
+        return reclaimed
     }
 
     public func scanReclaimableSpace() async throws {
