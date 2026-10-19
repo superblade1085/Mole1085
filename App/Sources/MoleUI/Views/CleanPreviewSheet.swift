@@ -276,7 +276,10 @@ public struct CleanPreviewSheet: View {
     private func executeClean() {
         isExecutingClean = true
         Task {
-            _ = try? await coordinator.performSafeCleanup(categories: coordinator.categories)
+            _ = try? await coordinator.performSafeCleanup(
+                categories: coordinator.categories,
+                createSnapshot: createSnapshotBeforeClean
+            )
             isExecutingClean = false
             isPresented = false
         }
