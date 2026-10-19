@@ -118,21 +118,52 @@ public struct SidebarView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedWorkflow ?? .clean {
-        case .clean:
-            CleanView(coordinator: coordinator)
-        case .analyze:
-            AnalyzeTreemapView(coordinator: coordinator)
-        case .software:
-            SoftwareView(coordinator: coordinator)
-        case .optimize:
-            OptimizeView(coordinator: coordinator)
-        case .status:
-            StatusView(coordinator: coordinator)
-        case .history:
-            HistoryView(coordinator: coordinator)
-        case .settings:
-            SettingsView(coordinator: coordinator)
+        VStack(spacing: 0) {
+            if let errorMsg = coordinator.lastErrorMessage {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(GlassTheme.warmAmber)
+                    Text(errorMsg)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    Spacer()
+                    Button {
+                        coordinator.clearError()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss error notification")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(GlassTheme.warmAmber.opacity(0.12))
+                .overlay(
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundStyle(GlassTheme.warmAmber.opacity(0.3)),
+                    alignment: .bottom
+                )
+            }
+
+            switch selectedWorkflow ?? .clean {
+            case .clean:
+                CleanView(coordinator: coordinator)
+            case .analyze:
+                AnalyzeTreemapView(coordinator: coordinator)
+            case .software:
+                SoftwareView(coordinator: coordinator)
+            case .optimize:
+                OptimizeView(coordinator: coordinator)
+            case .status:
+                StatusView(coordinator: coordinator)
+            case .history:
+                HistoryView(coordinator: coordinator)
+            case .settings:
+                SettingsView(coordinator: coordinator)
+            }
         }
     }
 }

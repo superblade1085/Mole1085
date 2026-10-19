@@ -41,14 +41,7 @@ final class UpdateManagerTests: XCTestCase {
         
         XCTAssertEqual(manager.state, .idle)
         
-        await manager.checkForUpdates(mockResult: .updateAvailable(version: "1.1.0"))
-        if case .updateAvailable(let version) = manager.state {
-            XCTAssertEqual(version, "1.1.0")
-        } else {
-            XCTFail("State should be updateAvailable")
-        }
-
-        await manager.checkForUpdates(mockResult: .upToDate)
+        await manager.checkForUpdates()
         XCTAssertEqual(manager.state, .upToDate)
     }
 

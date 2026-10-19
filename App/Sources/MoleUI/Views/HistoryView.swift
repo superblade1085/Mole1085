@@ -180,6 +180,10 @@ public struct HistoryView: View {
     private func reloadHistory() async {
         isLoading = true
         defer { isLoading = false }
-        try? await coordinator.fetchHistory(limit: 50)
+        do {
+            try await coordinator.fetchHistory(limit: 50)
+        } catch {
+            coordinator.reportError("Failed to fetch history: \(error.localizedDescription)")
+        }
     }
 }

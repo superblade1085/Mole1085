@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 import MoleEngine
 
 public struct StatusView: View {
@@ -21,7 +22,11 @@ public struct StatusView: View {
         }
         .padding(20)
         .task {
-            try? await coordinator.fetchSystemTelemetry()
+            do {
+                try await coordinator.fetchSystemTelemetry()
+            } catch {
+                coordinator.reportError("Failed to fetch system telemetry: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -40,7 +45,11 @@ public struct StatusView: View {
 
             Button {
                 Task {
-                    try? await coordinator.fetchSystemTelemetry()
+                    do {
+                        try await coordinator.fetchSystemTelemetry()
+                    } catch {
+                        coordinator.reportError("Failed to refresh system telemetry: \(error.localizedDescription)")
+                    }
                 }
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -127,12 +136,14 @@ public struct StatusView: View {
                 tint: coordinator.fullDiskAccessGranted ? GlassTheme.sageGreen : GlassTheme.warmAmber
             )
 
+            let helperStatus = SMAppService.daemon(plistName: "com.mole.helper.plist").status
+            let isHelperActive = helperStatus == .enabled
             telemetryCard(
                 title: "Privileged Helper Daemon",
-                value: "SMAppService Active",
-                subtitle: "Zero-prompt root bridge",
-                icon: "checkmark.shield.fill",
-                tint: GlassTheme.sageGreen
+                value: isHelperActive ? "SMAppService Active" : "Not Registered",
+                subtitle: isHelperActive ? "Zero-prompt root bridge active" : "Optional background helper inactive",
+                icon: isHelperActive ? "checkmark.shield.fill" : "shield.slash.fill",
+                tint: isHelperActive ? GlassTheme.sageGreen : GlassTheme.warmAmber
             )
         }
     }

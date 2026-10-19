@@ -252,7 +252,11 @@ public struct CleanView: View {
 
                 Button {
                     Task {
-                        try? await coordinator.scanReclaimableSpace()
+                        do {
+                            try await coordinator.scanReclaimableSpace()
+                        } catch {
+                            coordinator.reportError("Scan failed: \(error.localizedDescription)")
+                        }
                     }
                 } label: {
                     Label("Scan Space", systemImage: "arrow.clockwise")

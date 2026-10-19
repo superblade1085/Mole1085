@@ -1,4 +1,5 @@
 import SwiftUI
+import MoleCore
 import MoleEngine
 
 public struct CleanPreviewSheet: View {
@@ -11,6 +12,30 @@ public struct CleanPreviewSheet: View {
     public init(coordinator: MoleCoordinator, isPresented: Binding<Bool>) {
         self.coordinator = coordinator
         self._isPresented = isPresented
+    }
+
+    private var detectedSQLiteLocksCount: Int {
+        var count = 0
+        for cat in coordinator.categories where cat.isSelected {
+            for p in cat.paths {
+                if DatabaseGuard.isCompanionFile(url: p) {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+
+    private var detectedCloudStubsCount: Int {
+        var count = 0
+        for cat in coordinator.categories where cat.isSelected {
+            for p in cat.paths {
+                if DatalessGuard.isDatalessOrUbiquitous(url: p) {
+                    count += 1
+                }
+            }
+        }
+        return count
     }
 
     public var body: some View {
@@ -129,14 +154,14 @@ public struct CleanPreviewSheet: View {
             auditPill(
                 icon: "lock.shield.fill",
                 title: "DatabaseGuard",
-                detail: "0 SQLite Locks",
-                tint: GlassTheme.sageGreen
+                detail: "\(detectedSQLiteLocksCount) Companion Locks",
+                tint: detectedSQLiteLocksCount > 0 ? GlassTheme.warmAmber : GlassTheme.sageGreen
             )
             auditPill(
                 icon: "icloud.slash.fill",
                 title: "DatalessGuard",
-                detail: "0 Cloud Stubs",
-                tint: GlassTheme.sageGreen
+                detail: "\(detectedCloudStubsCount) Cloud Stubs",
+                tint: detectedCloudStubsCount > 0 ? GlassTheme.warmAmber : GlassTheme.sageGreen
             )
             auditPill(
                 icon: "arrow.uturn.backward.circle.fill",
@@ -276,10 +301,14 @@ public struct CleanPreviewSheet: View {
     private func executeClean() {
         isExecutingClean = true
         Task {
-            _ = try? await coordinator.performSafeCleanup(
-                categories: coordinator.categories,
-                createSnapshot: createSnapshotBeforeClean
-            )
+            do {
+                _ = try await coordinator.performSafeCleanup(
+                    categories: coordinator.categories,
+                    createSnapshot: createSnapshotBeforeClean
+                )
+            } catch {
+                coordinator.reportError("Cleanup failed: \(error.localizedDescription)")
+            }
             isExecutingClean = false
             isPresented = false
         }

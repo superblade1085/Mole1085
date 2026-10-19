@@ -77,3 +77,15 @@ setup() {
     run grep -rn "FakeData" "$REPO_ROOT/App/Sources/MoleUI"
     [ "$status" -ne 0 ]
 }
+
+@test "zero tolerance: production Swift sources contain zero isMock parameters" {
+    run grep -rn "isMock" "$REPO_ROOT/App/Sources"
+    [ "$status" -ne 0 ]
+}
+
+@test "clean_stream.sh scan mode excludes standalone SQLite WAL and SHM companion files" {
+    run bash -c "export MOLE_TEST_MODE=1; source '$REPO_ROOT/adapters/clean_stream.sh' --scan; emit_scan_item '/tmp/test.db-wal' 1024; emit_scan_item '/tmp/test.db-shm' 1024"
+    [ "$status" -eq 0 ]
+    [[ ! "$output" =~ "test.db-wal" ]] || return 1
+    [[ ! "$output" =~ "test.db-shm" ]]
+}

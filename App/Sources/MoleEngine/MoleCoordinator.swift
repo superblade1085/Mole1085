@@ -31,6 +31,7 @@ public final class MoleCoordinator {
     public private(set) var isLoadingOptimizeTasks: Bool = false
     public private(set) var executingOptimizeTaskID: String? = nil
     public private(set) var optimizeTaskResults: [String: OptimizeExecutionResult] = [:]
+    public private(set) var lastErrorMessage: String? = nil
 
     public var totalReclaimableBytes: Int64 {
         categories.reduce(0) { $0 + $1.bytes }
@@ -40,8 +41,16 @@ public final class MoleCoordinator {
         categories.filter { $0.isSelected }.reduce(0) { $0 + $1.bytes }
     }
 
-    public init(isMock: Bool = false) {
+    public init() {
         self.fullDiskAccessGranted = FullDiskAccess.isGranted()
+    }
+
+    public func clearError() {
+        self.lastErrorMessage = nil
+    }
+
+    public func reportError(_ message: String) {
+        self.lastErrorMessage = message
     }
 
     public func checkFullDiskAccess() {
@@ -99,8 +108,9 @@ public final class MoleCoordinator {
             let ramPercent = snapshot.memoryTotalGB > 0 ? (snapshot.memoryUsedGB / snapshot.memoryTotalGB) : 0.0
             let totalBytes = UInt64(snapshot.memoryTotalGB * 1024 * 1024 * 1024)
             let usedBytes = UInt64(snapshot.memoryUsedGB * 1024 * 1024 * 1024)
+            let liveCPU = DarwinMetrics.sampleCPUUsage()
             self.systemStatus = SystemStatus(
-                cpuUsage: 0.12,
+                cpuUsage: liveCPU,
                 ramUsage: ramPercent,
                 totalRAMBytes: totalBytes > 0 ? totalBytes : ProcessInfo.processInfo.physicalMemory,
                 usedRAMBytes: usedBytes,
@@ -322,8 +332,7 @@ public final class MoleCoordinator {
 
     public func performSafeCleanup(
         categories toClean: [CleanCategory],
-        createSnapshot: Bool = false,
-        trashingHandler: SafeTrash.TrashingHandler? = nil
+        createSnapshot: Bool = false
     ) async throws -> Int64 {
         guard !isCleaning else { return 0 }
         isCleaning = true
@@ -331,24 +340,6 @@ public final class MoleCoordinator {
 
         let selected = toClean.filter { $0.isSelected }
         guard !selected.isEmpty else { return 0 }
-
-        // If custom test trashingHandler is provided (unit tests), support it
-        if let customHandler = trashingHandler {
-            var directCleaned: Int64 = 0
-            for cat in selected {
-                for p in cat.paths {
-                    _ = try? SafeTrash.trashItem(at: p, trashingHandler: customHandler)
-                    directCleaned += 100
-                }
-            }
-            let claimed = selected.reduce(0) { $0 + $1.bytes }
-            let finalCleaned = max(directCleaned, claimed)
-            lastCleanedBytes = finalCleaned
-            let cleanedIDs = Set(selected.map { $0.id })
-            updateCategories(categories.filter { !cleanedIDs.contains($0.id) })
-            refreshDiskSpace()
-            return finalCleaned
-        }
 
         // Production path: Delegate strictly to clean_stream.sh CLI adapter
         guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "clean_stream.sh") ??

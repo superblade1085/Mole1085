@@ -187,6 +187,35 @@ if [[ "$MODE" == "uninstall" ]]; then
     TOTAL_RECLAIMED=0
     APP_SIZE=$(calculate_bytes "$APP_PATH")
 
+    # Reversible deletion honoring SafeTrash contract
+    trash_or_safe_remove() {
+        local target="$1"
+        [[ -e "$target" || -L "$target" ]] || return 0
+        if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]]; then
+            mkdir -p "$MOLE_TEST_TRASH_DIR" 2>/dev/null || true
+            mv "$target" "$MOLE_TEST_TRASH_DIR/" 2>/dev/null && return 0
+        fi
+        # Reversible Finder trashing
+        if /usr/bin/osascript - "$target" >/dev/null 2>&1 << 'APPLESCRIPT'
+on run argv
+    set p to POSIX file (item 1 of argv)
+    tell application "Finder"
+        delete p
+    end tell
+end run
+APPLESCRIPT
+        then
+            return 0
+        fi
+        local user_trash="$HOME/.Trash"
+        if [[ -d "$user_trash" && -w "$user_trash" ]]; then
+            local base
+            base=$(basename "$target")
+            mv "$target" "$user_trash/${base}.$$.$(date +%s)" 2>/dev/null && return 0
+        fi
+        /bin/rm -rf "$target" 2>/dev/null
+    }
+
     # Discover and remove leftovers
     if command -v find_app_files >/dev/null 2>&1; then
         LEFTOVERS=$(find_app_files "$APP_BUNDLE_ID" "$APP_BASE_NAME" "$APP_PATH" 2>/dev/null || true)
@@ -194,7 +223,7 @@ if [[ "$MODE" == "uninstall" ]]; then
             [[ -z "$lp" ]] && continue
             if [[ -e "$lp" || -L "$lp" ]]; then
                 lb=$(calculate_bytes "$lp")
-                if /bin/rm -rf "$lp" 2>/dev/null; then
+                if trash_or_safe_remove "$lp"; then
                     TOTAL_RECLAIMED=$((TOTAL_RECLAIMED + lb))
                 fi
             fi
@@ -202,7 +231,7 @@ if [[ "$MODE" == "uninstall" ]]; then
     fi
 
     # Remove app bundle itself via safe system trash or rm
-    if /bin/rm -rf "$APP_PATH" 2>/dev/null; then
+    if trash_or_safe_remove "$APP_PATH"; then
         TOTAL_RECLAIMED=$((TOTAL_RECLAIMED + APP_SIZE))
     fi
 

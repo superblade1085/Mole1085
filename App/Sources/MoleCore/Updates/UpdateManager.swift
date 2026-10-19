@@ -34,12 +34,7 @@ public final class UpdateManager: @unchecked Sendable {
     }
 
     /// Checks for available updates from the feed URL.
-    public func checkForUpdates(mockResult: UpdateState? = nil) async {
-        if let mock = mockResult {
-            self.state = mock
-            return
-        }
-
+    public func checkForUpdates() async {
         self.state = .checking
         // In real execution without active Sparkle network feed, report up to date
         self.state = .upToDate

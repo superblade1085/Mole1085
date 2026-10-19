@@ -27,7 +27,11 @@ public struct AnalyzeTreemapView: View {
         .frame(minWidth: 600, minHeight: 450)
         .task {
             if coordinator.diskAnalyzerRoot == nil && !coordinator.isAnalyzingDisk {
-                try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                do {
+                    try await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                } catch {
+                    coordinator.reportError("Disk analysis failed: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -50,7 +54,11 @@ public struct AnalyzeTreemapView: View {
                 } else {
                     Button {
                         Task {
-                            try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                            do {
+                                try await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                            } catch {
+                                coordinator.reportError("Re-scan failed: \(error.localizedDescription)")
+                            }
                         }
                     } label: {
                         Label("Re-scan", systemImage: "arrow.clockwise")
@@ -66,7 +74,11 @@ public struct AnalyzeTreemapView: View {
                     let parent = (coordinator.analyzedPath as NSString).deletingLastPathComponent
                     if !parent.isEmpty && parent != coordinator.analyzedPath {
                         Task {
-                            try? await coordinator.analyzeDiskUsage(path: parent)
+                            do {
+                                try await coordinator.analyzeDiskUsage(path: parent)
+                            } catch {
+                                coordinator.reportError("Navigation failed: \(error.localizedDescription)")
+                            }
                         }
                     }
                 } label: {
@@ -125,7 +137,11 @@ public struct AnalyzeTreemapView: View {
     private func quickJumpButton(label: String, path: String, icon: String) -> some View {
         Button {
             Task {
-                try? await coordinator.analyzeDiskUsage(path: path)
+                do {
+                    try await coordinator.analyzeDiskUsage(path: path)
+                } catch {
+                    coordinator.reportError("Failed to analyze \(label): \(error.localizedDescription)")
+                }
             }
         } label: {
             Label(label, systemImage: icon)
@@ -218,7 +234,11 @@ public struct AnalyzeTreemapView: View {
         .onTapGesture {
             if isDir {
                 Task {
-                    try? await coordinator.analyzeDiskUsage(path: node.id)
+                    do {
+                        try await coordinator.analyzeDiskUsage(path: node.id)
+                    } catch {
+                        coordinator.reportError("Failed to open directory \(node.name): \(error.localizedDescription)")
+                    }
                 }
             } else if let catID = node.categoryID, isCategoryNode {
                 coordinator.toggleCategorySelection(id: catID)
@@ -241,7 +261,11 @@ public struct AnalyzeTreemapView: View {
                     .multilineTextAlignment(.center)
                 Button("Analyze Current Directory") {
                     Task {
-                        try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                        do {
+                            try await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+                        } catch {
+                            coordinator.reportError("Disk analysis failed: \(error.localizedDescription)")
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)

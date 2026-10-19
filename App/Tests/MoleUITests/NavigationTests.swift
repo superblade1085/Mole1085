@@ -42,7 +42,7 @@ final class NavigationTests: XCTestCase {
 
     @MainActor
     func testViewInstantiationSmokeTests() {
-        let coordinator = MoleCoordinator(isMock: true)
+        let coordinator = MoleCoordinator()
         
         // Instantiate views and evaluate their body properties to verify no runtime traps
         let sidebar = SidebarView(coordinator: coordinator)

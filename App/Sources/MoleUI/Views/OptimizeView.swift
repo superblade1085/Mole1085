@@ -34,7 +34,11 @@ public struct OptimizeView: View {
                         .foregroundStyle(.secondary)
                     Button("Reload Tasks") {
                         Task {
-                            try? await coordinator.fetchOptimizeTasks()
+                            do {
+                                try await coordinator.fetchOptimizeTasks()
+                            } catch {
+                                coordinator.reportError("Failed to fetch optimize tasks: \(error.localizedDescription)")
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
@@ -54,7 +58,11 @@ public struct OptimizeView: View {
         .padding(20)
         .task {
             if coordinator.optimizeTasks.isEmpty {
-                try? await coordinator.fetchOptimizeTasks()
+                do {
+                    try await coordinator.fetchOptimizeTasks()
+                } catch {
+                    coordinator.reportError("Failed to load optimize tasks: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -168,7 +176,11 @@ public struct OptimizeView: View {
 
     private func executeTask(_ id: String) {
         Task {
-            _ = try? await coordinator.executeOptimizeTask(id: id)
+            do {
+                _ = try await coordinator.executeOptimizeTask(id: id)
+            } catch {
+                coordinator.reportError("Failed to execute optimization task \(id): \(error.localizedDescription)")
+            }
         }
     }
 
@@ -176,7 +188,11 @@ public struct OptimizeView: View {
         Task {
             let safeTasks = coordinator.optimizeTasks.filter { !$0.requiresSudo && $0.safe }
             for task in safeTasks {
-                _ = try? await coordinator.executeOptimizeTask(id: task.id)
+                do {
+                    _ = try await coordinator.executeOptimizeTask(id: task.id)
+                } catch {
+                    coordinator.reportError("Failed to execute \(task.name): \(error.localizedDescription)")
+                }
             }
         }
     }

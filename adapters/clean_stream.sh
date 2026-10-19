@@ -45,6 +45,11 @@ while [[ $# -gt 0 ]]; do
             REQUESTED_CATEGORIES="${2:-all}"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            export DRY_RUN
+            shift
+            ;;
         --snapshot)
             CREATE_SNAPSHOT=true
             shift
@@ -159,6 +164,14 @@ emit_scan_item() {
     local target="$1"
     local bytes="$2"
     local is_safe="${3:-true}"
+
+    # Exclude SQLite WAL/SHM companion sidecars to avoid database corruption
+    case "$target" in
+        *-wal|*-shm|*-journal|*.db-wal|*.db-shm|*.db-journal)
+            return 0
+            ;;
+    esac
+
     local level="guaranteedSafe"
     if [[ "$CURRENT_GROUP" == "logs" ]]; then
         level="rebuildable"
@@ -333,8 +346,12 @@ fi
 # --- CLEAN MODE ---
 
 if [[ "$MODE" == "clean" ]]; then
-    export DRY_RUN=false
-    export MOLE_DRY_RUN=0
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        export MOLE_DRY_RUN=1
+    else
+        export DRY_RUN=false
+        export MOLE_DRY_RUN=0
+    fi
     export MOLE_NON_INTERACTIVE=1
     export MOLE_SKIP_MAIN=1
 
@@ -345,6 +362,38 @@ if [[ "$MODE" == "clean" ]]; then
 
     TOTAL_CLEANED_BYTES=0
 
+    # Reversible deletion honoring SafeTrash contract
+    trash_or_safe_remove() {
+        local target="$1"
+        [[ -e "$target" || -L "$target" ]] || return 0
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            return 0
+        fi
+        if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]]; then
+            mkdir -p "$MOLE_TEST_TRASH_DIR" 2>/dev/null || true
+            mv "$target" "$MOLE_TEST_TRASH_DIR/" 2>/dev/null && return 0
+        fi
+        # Reversible Finder trashing
+        if /usr/bin/osascript - "$target" >/dev/null 2>&1 << 'APPLESCRIPT'
+on run argv
+    set p to POSIX file (item 1 of argv)
+    tell application "Finder"
+        delete p
+    end tell
+end run
+APPLESCRIPT
+        then
+            return 0
+        fi
+        local user_trash="$HOME/.Trash"
+        if [[ -d "$user_trash" && -w "$user_trash" ]]; then
+            local base
+            base=$(basename "$target")
+            mv "$target" "$user_trash/${base}.$$.$(date +%s)" 2>/dev/null && return 0
+        fi
+        /bin/rm -rf "$target" 2>/dev/null
+    }
+
     # Hook safe_clean to track and emit real deletions
     safe_clean() {
         local desc="${*: -1}"
@@ -353,7 +402,7 @@ if [[ "$MODE" == "clean" ]]; then
             if [[ -e "$p" || -L "$p" ]]; then
                 local b
                 b=$(calculate_bytes "$p")
-                if /bin/rm -rf "$p" 2>/dev/null; then
+                if trash_or_safe_remove "$p"; then
                     TOTAL_CLEANED_BYTES=$((TOTAL_CLEANED_BYTES + b))
                     emit_cleaned_item "$CURRENT_CATEGORY" "$p" "$b"
                 fi
@@ -372,7 +421,7 @@ if [[ "$MODE" == "clean" ]]; then
         if [[ -n "$cache_path" && (-e "$cache_path" || -L "$cache_path") ]]; then
             local b
             b=$(calculate_bytes "$cache_path")
-            if /bin/rm -rf "$cache_path" 2>/dev/null; then
+            if trash_or_safe_remove "$cache_path"; then
                 TOTAL_CLEANED_BYTES=$((TOTAL_CLEANED_BYTES + b))
                 emit_cleaned_item "$CURRENT_CATEGORY" "$cache_path" "$b"
             fi
@@ -386,7 +435,7 @@ if [[ "$MODE" == "clean" ]]; then
             if [[ -e "$item" || -L "$item" ]]; then
                 local b
                 b=$(calculate_bytes "$item")
-                if /bin/rm -rf "$item" 2>/dev/null; then
+                if trash_or_safe_remove "$item"; then
                     TOTAL_CLEANED_BYTES=$((TOTAL_CLEANED_BYTES + b))
                     emit_cleaned_item "$CURRENT_CATEGORY" "$item" "$b"
                 fi

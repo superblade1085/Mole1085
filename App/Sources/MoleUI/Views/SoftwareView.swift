@@ -37,7 +37,11 @@ public struct SoftwareView: View {
         .frame(minWidth: 600, minHeight: 450)
         .task {
             if coordinator.installedApps.isEmpty && !coordinator.isLoadingApps {
-                try? await coordinator.fetchInstalledApps()
+                do {
+                    try await coordinator.fetchInstalledApps()
+                } catch {
+                    coordinator.reportError("Failed to load installed apps: \(error.localizedDescription)")
+                }
             }
         }
         .confirmationDialog(
@@ -52,7 +56,11 @@ public struct SoftwareView: View {
                 if let app = appToUninstall {
                     Task {
                         isUninstalling = true
-                        _ = try? await coordinator.uninstallApp(app: app)
+                        do {
+                            _ = try await coordinator.uninstallApp(app: app)
+                        } catch {
+                            coordinator.reportError("Failed to uninstall \(app.name): \(error.localizedDescription)")
+                        }
                         isUninstalling = false
                         appToUninstall = nil
                     }
@@ -102,7 +110,11 @@ public struct SoftwareView: View {
             } else {
                 Button {
                     Task {
-                        try? await coordinator.fetchInstalledApps()
+                        do {
+                            try await coordinator.fetchInstalledApps()
+                        } catch {
+                            coordinator.reportError("Failed to refresh apps: \(error.localizedDescription)")
+                        }
                     }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
@@ -188,7 +200,11 @@ public struct SoftwareView: View {
                                     if leftovers == nil {
                                         Task {
                                             loadingLeftoverIDs.insert(app.id)
-                                            _ = try? await coordinator.fetchAppLeftovers(app: app)
+                                            do {
+                                                _ = try await coordinator.fetchAppLeftovers(app: app)
+                                            } catch {
+                                                coordinator.reportError("Failed to probe leftovers for \(app.name): \(error.localizedDescription)")
+                                            }
                                             loadingLeftoverIDs.remove(app.id)
                                         }
                                     }
@@ -302,7 +318,11 @@ public struct SoftwareView: View {
                     .multilineTextAlignment(.center)
                 Button("Scan Applications") {
                     Task {
-                        try? await coordinator.fetchInstalledApps()
+                        do {
+                            try await coordinator.fetchInstalledApps()
+                        } catch {
+                            coordinator.reportError("Failed to scan applications: \(error.localizedDescription)")
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)

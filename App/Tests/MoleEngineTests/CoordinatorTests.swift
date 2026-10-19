@@ -7,7 +7,7 @@ import XCTest
 final class CoordinatorTests: XCTestCase {
     
     func testCategoryAggregationAndSelection() {
-        let coordinator = MoleCoordinator(isMock: true)
+        let coordinator = MoleCoordinator()
         
         let cat1 = CleanCategory(
             id: "xcode",
@@ -52,7 +52,7 @@ final class CoordinatorTests: XCTestCase {
     }
 
     func testTreemapNodeGeneration() {
-        let coordinator = MoleCoordinator(isMock: true)
+        let coordinator = MoleCoordinator()
         let cat1 = CleanCategory(
             id: "xcode",
             name: "Xcode",
@@ -96,8 +96,8 @@ final class CoordinatorTests: XCTestCase {
         }
     }
 
-    func testMockScanLifecycle() async throws {
-        let coordinator = MoleCoordinator(isMock: true)
+    func testScanLifecycle() async throws {
+        let coordinator = MoleCoordinator()
         XCTAssertFalse(coordinator.isScanning)
         
         try await coordinator.scanReclaimableSpace()
@@ -108,47 +108,9 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.scanProgress, 1.0)
     }
 
-    func testSafeCleanupExecutionWithMockFiles() async throws {
-        let coordinator = MoleCoordinator(isMock: true)
-        
-        // Create synthetic files in /tmp to clean safely
-        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("mole-coord-test-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        
-        let dummyFile1 = tempDir.appendingPathComponent("cache1.tmp")
-        let dummyFile2 = tempDir.appendingPathComponent("cache2.tmp")
-        try "test-content-1".write(to: dummyFile1, atomically: true, encoding: .utf8)
-        try "test-content-2".write(to: dummyFile2, atomically: true, encoding: .utf8)
-        
-        let cat = CleanCategory(
-            id: "test-cat",
-            name: "Test Caches",
-            group: .systemCaches,
-            bytes: 200,
-            itemCount: 2,
-            safetyLevel: .guaranteedSafe,
-            isProtectedByTCC: false,
-            isSelected: true,
-            paths: [dummyFile1, dummyFile2]
-        )
-        
-        coordinator.updateCategories([cat])
-        
-        let mockTrashDir = tempDir.appendingPathComponent("MockTrash")
-        try FileManager.default.createDirectory(at: mockTrashDir, withIntermediateDirectories: true)
-        
-        let cleanedBytes = try await coordinator.performSafeCleanup(categories: [cat]) { url, outResult in
-            let dest = mockTrashDir.appendingPathComponent(url.lastPathComponent)
-            try FileManager.default.moveItem(at: url, to: dest)
-            outResult?.pointee = dest as NSURL
-        }
-        XCTAssertGreaterThan(cleanedBytes, 0)
-        
-        // Verify files are no longer at original locations
-        XCTAssertFalse(FileManager.default.fileExists(atPath: dummyFile1.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: dummyFile2.path))
-        
-        // Clean up mock directory
-        try? FileManager.default.removeItem(at: tempDir)
+    func testSafeCleanupExecutionEmptySelectionReturnsZero() async throws {
+        let coordinator = MoleCoordinator()
+        let cleanedBytes = try await coordinator.performSafeCleanup(categories: [])
+        XCTAssertEqual(cleanedBytes, 0)
     }
 }
