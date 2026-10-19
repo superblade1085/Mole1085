@@ -61,6 +61,25 @@ cp "$BIN_DIR/MoleHelperDaemon" "$BUNDLE_DIR/Contents/Library/LaunchServices/com.
 cp "$REPO_ROOT/App/Sources/MoleHelper/LaunchDaemons/com.mole.helper.plist" "$BUNDLE_DIR/Contents/Library/LaunchDaemons/com.mole.helper.plist"
 cp "$REPO_ROOT/App/Resources/AppIcon.icns" "$BUNDLE_DIR/Contents/Resources/AppIcon.icns"
 
+# Copy CLI engine assets into Contents/Resources/mole-engine
+ENGINE_DEST="$BUNDLE_DIR/Contents/Resources/mole-engine"
+mkdir -p "$ENGINE_DEST"
+cp -R "$REPO_ROOT/lib" "$ENGINE_DEST/lib"
+cp -R "$REPO_ROOT/adapters" "$ENGINE_DEST/adapters"
+mkdir -p "$ENGINE_DEST/bin"
+cp "$REPO_ROOT/bin"/*.sh "$ENGINE_DEST/bin/"
+if [[ -f "$REPO_ROOT/bin/analyze-go" ]]; then
+    cp "$REPO_ROOT/bin/analyze-go" "$ENGINE_DEST/bin/"
+fi
+if [[ -f "$REPO_ROOT/bin/status-go" ]]; then
+    cp "$REPO_ROOT/bin/status-go" "$ENGINE_DEST/bin/"
+fi
+if [[ -f "$REPO_ROOT/mole" ]]; then
+    cp "$REPO_ROOT/mole" "$ENGINE_DEST/mole"
+    chmod +x "$ENGINE_DEST/mole"
+fi
+chmod -R +x "$ENGINE_DEST/bin" "$ENGINE_DEST/adapters"
+
 chmod +x "$BUNDLE_DIR/Contents/MacOS/MoleApp"
 chmod +x "$BUNDLE_DIR/Contents/Library/LaunchServices/com.mole.helper"
 
