@@ -63,6 +63,48 @@ public struct TreemapNode: Identifiable, Sendable, Equatable {
         )
     }
 
+    /// Computes layout for disk analyzer directory entries.
+    public static func layout(
+        entries: [AnalyzeEntry],
+        rootPath: String,
+        bounds: CGRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+    ) -> TreemapNode {
+        let activeEntries = entries.filter { $0.size > 0 }
+        let totalSize = activeEntries.reduce(0) { $0 + $1.size }
+        let rootName = (rootPath as NSString).lastPathComponent
+
+        guard totalSize > 0 else {
+            return TreemapNode(
+                id: rootPath,
+                name: rootName.isEmpty ? "/" : rootName,
+                size: 0,
+                rect: bounds,
+                children: []
+            )
+        }
+
+        var nodes = activeEntries.map { entry in
+            TreemapNode(
+                id: entry.path,
+                name: entry.name,
+                size: entry.size,
+                categoryID: entry.isDir ? "directory" : "file",
+                rect: .zero,
+                children: []
+            )
+        }
+
+        nodes = layoutSliceAndDice(nodes: nodes, in: bounds, totalSize: totalSize)
+
+        return TreemapNode(
+            id: rootPath,
+            name: rootName.isEmpty ? "/" : rootName,
+            size: totalSize,
+            rect: bounds,
+            children: nodes
+        )
+    }
+
     private static func layoutSliceAndDice(
         nodes: [TreemapNode],
         in rect: CGRect,

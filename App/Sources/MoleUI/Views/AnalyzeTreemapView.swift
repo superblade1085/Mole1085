@@ -9,11 +9,15 @@ public struct AnalyzeTreemapView: View {
         self.coordinator = coordinator
     }
 
+    private var activeRoot: TreemapNode? {
+        coordinator.diskAnalyzerRoot ?? coordinator.treemapRoot
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             headerView
 
-            if let root = coordinator.treemapRoot, !root.children.isEmpty {
+            if let root = activeRoot, !root.children.isEmpty {
                 treemapCanvas(root: root)
             } else {
                 emptyStateView
@@ -21,64 +25,116 @@ public struct AnalyzeTreemapView: View {
         }
         .padding(20)
         .frame(minWidth: 600, minHeight: 450)
+        .task {
+            if coordinator.diskAnalyzerRoot == nil && !coordinator.isAnalyzingDisk {
+                try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
+            }
+        }
     }
 
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Disk Space Treemap")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("Proportional visualization of reclaimable storage")
+                    Text("Interactive proportional visualization powered by Mole CLI")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if coordinator.isScanning {
+                if coordinator.isAnalyzingDisk || coordinator.isScanning {
                     ProgressView()
                         .controlSize(.small)
                 } else {
                     Button {
                         Task {
-                            try? await coordinator.scanReclaimableSpace()
+                            try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
                         }
                     } label: {
                         Label("Re-scan", systemImage: "arrow.clockwise")
                     }
-                    .help("Re-scan system to refresh treemap")
+                    .help("Re-analyze current directory")
                 }
             }
 
-            // Breadcrumbs Bar
-            HStack(spacing: 6) {
-                Image(systemName: "internaldrive")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Macintosh HD")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                Text("~/Library/Caches")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let hovered = hoveredNodeID, let node = coordinator.treemapRoot?.children.first(where: { $0.id == hovered }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                    Text(node.name)
+            // Interactive Navigation & Breadcrumbs Bar
+            HStack(spacing: 8) {
+                // Back / Up directory button
+                Button {
+                    let parent = (coordinator.analyzedPath as NSString).deletingLastPathComponent
+                    if !parent.isEmpty && parent != coordinator.analyzedPath {
+                        Task {
+                            try? await coordinator.analyzeDiskUsage(path: parent)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.up")
                         .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(GlassTheme.warmAmber)
+                }
+                .disabled(coordinator.analyzedPath == "/" || coordinator.isAnalyzingDisk)
+                .help("Navigate to parent directory")
+
+                // Breadcrumb path components
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(displayPath(coordinator.analyzedPath))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+
+                    if let hovered = hoveredNodeID, let node = activeRoot?.children.first(where: { $0.id == hovered }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                        Text(node.name)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(GlassTheme.warmAmber)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(Capsule())
+
+                Spacer()
+
+                // Quick jump destinations
+                HStack(spacing: 6) {
+                    quickJumpButton(label: "Home", path: NSHomeDirectory(), icon: "house")
+                    quickJumpButton(label: "Caches", path: NSHomeDirectory() + "/Library/Caches", icon: "archivebox")
+                    quickJumpButton(label: "Developer", path: NSHomeDirectory() + "/Library/Developer", icon: "hammer")
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(Capsule())
         }
+    }
+
+    private func displayPath(_ raw: String) -> String {
+        let home = NSHomeDirectory()
+        if raw.hasPrefix(home) {
+            return "~" + raw.dropFirst(home.count)
+        }
+        return raw.isEmpty ? "/" : raw
+    }
+
+    private func quickJumpButton(label: String, path: String, icon: String) -> some View {
+        Button {
+            Task {
+                try? await coordinator.analyzeDiskUsage(path: path)
+            }
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(coordinator.analyzedPath == path || coordinator.isAnalyzingDisk)
+        .help("Analyze \(label)")
     }
 
     private func treemapCanvas(root: TreemapNode) -> some View {
@@ -105,29 +161,46 @@ public struct AnalyzeTreemapView: View {
 
     private func treemapBlock(node: TreemapNode, rect: CGRect) -> some View {
         let isHovered = hoveredNodeID == node.id
-        let category = coordinator.categories.first { $0.id == node.categoryID }
-        let group = category?.group ?? .developer
-        let isSelected = category?.isSelected ?? true
+        let isDir = node.categoryID == "directory"
+        let isCategoryNode = node.categoryID != nil && node.categoryID != "directory" && node.categoryID != "file"
+
+        let fillColor: Color = {
+            if isCategoryNode {
+                let category = coordinator.categories.first { $0.id == node.categoryID }
+                return GlassTheme.color(for: category?.group ?? .developer)
+            } else if isDir {
+                return GlassTheme.atmosphericBlue
+            } else {
+                return GlassTheme.softLavender
+            }
+        }()
 
         return ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(GlassTheme.gradient(for: group).opacity(isSelected ? (isHovered ? 1.0 : 0.85) : 0.25))
+                .fill(fillColor.opacity(isHovered ? 0.95 : 0.8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .strokeBorder(
-                            isHovered ? GlassTheme.specularHighlightColor : Color.white.opacity(0.15),
+                            isHovered ? GlassTheme.specularHighlightColor : Color.white.opacity(0.18),
                             lineWidth: isHovered ? 1.5 : 0.5
                         )
                 )
 
             if rect.width > 60 && rect.height > 35 {
                 VStack(spacing: 2) {
-                    Text(node.name)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                    HStack(spacing: 3) {
+                        if isDir {
+                            Image(systemName: "folder")
+                                .font(.system(size: 10))
+                        }
+                        Text(node.name)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+
                     Text(DiskSpaceInfo.format(bytes: node.size))
                         .font(.caption)
                         .fontWeight(.medium)
@@ -143,10 +216,15 @@ public struct AnalyzeTreemapView: View {
             hoveredNodeID = hovering ? node.id : nil
         }
         .onTapGesture {
-            guard let catID = node.categoryID, !(category?.isProtectedByTCC ?? false) else { return }
-            coordinator.toggleCategorySelection(id: catID)
+            if isDir {
+                Task {
+                    try? await coordinator.analyzeDiskUsage(path: node.id)
+                }
+            } else if let catID = node.categoryID, isCategoryNode {
+                coordinator.toggleCategorySelection(id: catID)
+            }
         }
-        .help("\(node.name): \(DiskSpaceInfo.format(bytes: node.size)) (Click to toggle)")
+        .help("\(node.name): \(DiskSpaceInfo.format(bytes: node.size))\(isDir ? " (Click to open folder)" : "")")
     }
 
     private var emptyStateView: some View {
@@ -155,15 +233,15 @@ public struct AnalyzeTreemapView: View {
                 Image(systemName: "chart.pie")
                     .font(.system(size: 48))
                     .foregroundStyle(.secondary)
-                Text("No Scan Data Available")
+                Text("No Disk Analysis Data")
                     .font(.headline)
-                Text("Run a scan to generate a proportional visual treemap of cleanable junk.")
+                Text("Analyze storage usage to generate a proportional visual treemap.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("Start Scan") {
+                Button("Analyze Current Directory") {
                     Task {
-                        try? await coordinator.scanReclaimableSpace()
+                        try? await coordinator.analyzeDiskUsage(path: coordinator.analyzedPath)
                     }
                 }
                 .buttonStyle(.borderedProminent)

@@ -20,6 +20,10 @@ public final class MoleCoordinator {
     public private(set) var fullDiskAccessGranted: Bool = false
     public private(set) var lastScanDate: Date? = nil
     public private(set) var lastCleanedBytes: Int64 = 0
+    public private(set) var analyzedPath: String = NSHomeDirectory()
+    public private(set) var diskAnalyzerRoot: TreemapNode? = nil
+    public private(set) var isAnalyzingDisk: Bool = false
+    public private(set) var diskAnalysisOutput: AnalyzeOutput? = nil
 
     private let isMock: Bool
 
@@ -122,6 +126,35 @@ public final class MoleCoordinator {
             self.historyManifest = manifest
             self.historySessions = manifest.sessions
             self.historyDeletions = manifest.deletions
+        }
+    }
+
+    public func analyzeDiskUsage(path: String = NSHomeDirectory()) async throws {
+        guard !isAnalyzingDisk else { return }
+        isAnalyzingDisk = true
+        analyzedPath = path
+        defer { isAnalyzingDisk = false }
+
+        guard let adapter = MoleEngineLocator.shared.resolveAdapter(named: "analyze_stream.sh") else {
+            throw ProcessStreamerError.processLaunchFailed("analyze_stream.sh adapter not found")
+        }
+
+        let streamer = ProcessStreamer()
+        let stream = streamer.stream(
+            executable: "/bin/bash",
+            arguments: [adapter.path, "--path", path],
+            environment: ProcessInfo.processInfo.environment
+        )
+
+        var jsonBuffer = ""
+        for try await line in stream {
+            jsonBuffer += line + "\n"
+        }
+
+        if let data = jsonBuffer.data(using: .utf8),
+           let output = try? JSONDecoder().decode(AnalyzeOutput.self, from: data) {
+            self.diskAnalysisOutput = output
+            self.diskAnalyzerRoot = output.toTreemapNode()
         }
     }
 
